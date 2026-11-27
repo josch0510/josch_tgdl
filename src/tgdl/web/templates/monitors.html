@@ -57,10 +57,16 @@
 
 <section class="card">
   <h2>{{ t("monitors.add") }}</h2>
-  <div class="search-row">
+  <div class="search-row" id="dialog-search">
     <input type="search" name="q" placeholder="{{ t('monitors.search') }}" aria-label="{{ t('monitors.search') }}"
-           hx-get="/monitors/dialogs" hx-trigger="input changed delay:300ms, search, load" hx-target="#dialog-results">
-    <button type="button" class="btn btn-small" hx-get="/monitors/dialogs?refresh=1" hx-include="previous input" hx-target="#dialog-results">{{ t("monitors.refresh") }}</button>
+           hx-get="/monitors/dialogs" hx-trigger="input changed delay:300ms, search, load" hx-target="#dialog-results"
+           hx-include="#dialog-search">
+    <select name="type" aria-label="{{ t('monitors.type_filter') }}" class="type-filter"
+            hx-get="/monitors/dialogs" hx-trigger="change" hx-target="#dialog-results" hx-include="#dialog-search">
+      <option value="">{{ t("monitors.type_all") }}</option>
+      {% for ct in ("saved", "channel", "group", "user", "bot") %}<option value="{{ ct }}">{{ t("chat_type." ~ ct) }}</option>{% endfor %}
+    </select>
+    <button type="button" class="btn btn-small" hx-get="/monitors/dialogs?refresh=1" hx-include="#dialog-search" hx-target="#dialog-results">{{ t("monitors.refresh") }}</button>
   </div>
   <div id="dialog-results"><p class="muted">{{ t("common.loading") }}</p></div>
 </section>

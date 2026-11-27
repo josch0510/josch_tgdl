@@ -113,7 +113,7 @@
   "common.loading": "Loading…",
   "chat_type.channel": "Channel",
   "chat_type.group": "Group",
-  "chat_type.user": "User",
+  "chat_type.user": "Private chat",
   "monitors.current": "Monitored chats",
   "monitors.none": "No chats are monitored yet. Add one below.",
   "monitors.overrides": "Settings",
@@ -126,7 +126,7 @@
   "monitors.date_to": "To date",
   "monitors.confirm_remove": "Stop monitoring \"{chat}\"? Downloaded files and history are kept.",
   "monitors.add": "Add a chat",
-  "monitors.search": "Search joined groups and channels, or Saved Messages",
+  "monitors.search": "Search your chats by name or @username",
   "monitors.refresh": "Reload list",
   "monitors.no_results": "No matching chats.",
   "monitors.already": "Monitored",
@@ -282,5 +282,8 @@
   "monitor.keyword_is": "filename contains \"{keyword}\"",
   "monitor.no_types_selected": "no media types: nothing is downloaded",
   "monitors.edit_settings": "Edit settings",
-  "chat_type.saved": "Saved Messages"
+  "chat_type.saved": "Saved Messages",
+  "chat_type.bot": "Bot",
+  "monitors.type_filter": "Chat type",
+  "monitors.type_all": "All types"
 }

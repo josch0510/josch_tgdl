@@ -63,13 +63,13 @@ def _back(form: Any) -> str:
 
 
 @router.get("/monitors/dialogs")
-async def dialogs_partial(request: Request, q: str = "", refresh: int = 0,
+async def dialogs_partial(request: Request, q: str = "", type: str = "", refresh: int = 0,
                           _s: Session = Depends(require_session)) -> Response:
     app = core(request)
     error = None
     items: list = []
     try:
-        items = DialogCache.search(await app.dialogs.get(refresh=bool(refresh)), q[:100])
+        items = DialogCache.search(await app.dialogs.get(refresh=bool(refresh)), q[:100], type)
     except FLOOD_ERRORS:
         error = "monitors.dialogs_flood"
     except Exception:  # noqa: BLE001 - e.g. disconnected

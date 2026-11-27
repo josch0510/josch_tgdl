@@ -115,3 +115,4 @@ a.btn { text-decoration: none; display: inline-block; }
 .settings-summary .path { word-break: break-all; }
 .tag { display: inline-block; padding: 0 .4em; border-radius: 4px; font-size: .75rem; background: var(--bg); border: 1px solid var(--border); color: var(--muted); vertical-align: middle; }
 .edit-btn { margin-top: .4rem; }
+.type-filter { width: auto; }

@@ -8,7 +8,7 @@
   <tbody>
   {% for c in items %}
     <tr>
-      <td>{{ chat_label(c.title) }} <span class="muted mono small">{{ c.chat_id }}</span></td>
+      <td>{{ chat_label(c.title) }}{% if c.username %} <span class="muted small">@{{ c.username }}</span>{% endif %} <span class="muted mono small">{{ c.chat_id }}</span></td>
       <td>{{ t("chat_type." ~ c.chat_type) }}</td>
       <td class="right">
         {% if c.chat_id in monitored %}

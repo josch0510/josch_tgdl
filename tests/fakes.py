@@ -70,11 +70,12 @@ class FakeTelegram:
                                             is_group=group, is_user=False,
                                             entity=SimpleNamespace(is_self=False)))
 
-    def add_user_dialog(self, user_id: int, name: str, *, is_self: bool = False) -> None:
+    def add_user_dialog(self, user_id: int, name: str, *, is_self: bool = False, bot: bool = False,
+                        deleted: bool = False, username: str | None = None) -> None:
         """A private chat; with is_self=True it is "Saved Messages"."""
-        self.dialogs.append(SimpleNamespace(id=user_id, name=name, is_channel=False,
-                                            is_group=False, is_user=True,
-                                            entity=SimpleNamespace(is_self=is_self)))
+        self.dialogs.append(SimpleNamespace(
+            id=user_id, name=name, is_channel=False, is_group=False, is_user=True,
+            entity=SimpleNamespace(is_self=is_self, bot=bot, deleted=deleted, username=username)))
 
     def add(self, chat_id: int, message: Any) -> Any:
         self.messages[(chat_id, message.id)] = message

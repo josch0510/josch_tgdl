@@ -41,20 +41,28 @@ def is_saved_messages(dialog: Any) -> bool:
 class ChatInfo:
     chat_id: int
     title: str
-    chat_type: str  # channel / group / user
+    chat_type: str  # channel / group / user / bot / saved
+    username: str | None = None  # public @username, if any (search only)
 
     @classmethod
     def from_entity(cls, entity: Any) -> "ChatInfo":
+        peer_id = utils.get_peer_id(entity)
         if isinstance(entity, User) and entity.is_self:
-            return cls(chat_id=utils.get_peer_id(entity), title=SAVED_MESSAGES_TITLE, chat_type="saved")
+            return cls(chat_id=peer_id, title=SAVED_MESSAGES_TITLE, chat_type="saved")
         if isinstance(entity, Channel):
             ctype = "group" if entity.megagroup or entity.gigagroup else "channel"
         elif isinstance(entity, Chat):
             ctype = "group"
+        elif isinstance(entity, User) and entity.bot:
+            ctype = "bot"
         else:
             ctype = "user"
-        title = utils.get_display_name(entity) or str(utils.get_peer_id(entity))
-        return cls(chat_id=utils.get_peer_id(entity), title=title, chat_type=ctype)
+        title = utils.get_display_name(entity) or str(peer_id)
+        return cls(chat_id=peer_id, title=title, chat_type=ctype,
+                   username=getattr(entity, "username", None) or None)
+
+
+CHAT_TYPES: tuple[str, ...] = ("saved", "channel", "group", "user", "bot")
 
 
 def build_client(cfg: AppConfig, *, long_running: bool = False) -> TelegramClient:
@@ -146,8 +154,8 @@ async def resolve_chat(client: TelegramClient, ref: str) -> ChatInfo:
 
 
 class DialogCache:
-    """Joined groups/channels, cached to avoid hammering GetDialogs
-    (which is rate limited)."""
+    """The user's chats (groups, channels, private chats, bots, Saved
+    Messages), cached to avoid hammering GetDialogs (rate limited)."""
 
     TTL = 300.0
 
@@ -159,11 +167,26 @@ class DialogCache:
         self._lock = asyncio.Lock()
 
     @staticmethod
-    def from_dialog(d: Any) -> ChatInfo:
+    def from_dialog(d: Any) -> ChatInfo | None:
+        """Groups, channels, private chats (people and bots) and Saved
+        Messages; None for dialogs that cannot be monitored (deleted
+        accounts)."""
+        entity = getattr(d, "entity", None)
+        username = getattr(entity, "username", None) or None
         if is_saved_messages(d):
             return ChatInfo(chat_id=int(d.id), title=SAVED_MESSAGES_TITLE, chat_type="saved")
-        ctype = "group" if getattr(d, "is_group", False) else "channel"
-        return ChatInfo(chat_id=int(d.id), title=str(d.name or d.id), chat_type=ctype)
+        if getattr(d, "is_user", False):
+            if getattr(entity, "deleted", False):
+                return None
+            ctype = "bot" if getattr(entity, "bot", False) else "user"
+        elif getattr(d, "is_group", False):
+            ctype = "group"
+        elif getattr(d, "is_channel", False):
+            ctype = "channel"
+        else:
+            return None
+        return ChatInfo(chat_id=int(d.id), title=str(d.name or d.id), chat_type=ctype,
+                        username=username)
 
     async def get(self, refresh: bool = False) -> list[ChatInfo]:
         from ..downloader.flood import FLOOD_ERRORS
@@ -182,9 +205,7 @@ class DialogCache:
                     return self._items
                 raise
             self._items = sorted(
-                (self.from_dialog(d) for d in dialogs
-                 if getattr(d, "is_channel", False) or getattr(d, "is_group", False)
-                 or is_saved_messages(d)),
+                (c for c in (self.from_dialog(d) for d in dialogs) if c is not None),
                 # Saved Messages first, then alphabetically
                 key=lambda c: (c.chat_type != "saved", c.title.casefold()))
             self._at = time.monotonic()
@@ -194,9 +215,15 @@ class DialogCache:
         return next((c for c in self._items if c.chat_id == chat_id), None)
 
     @staticmethod
-    def search(items: list[ChatInfo], query: str) -> list[ChatInfo]:
+    def search(items: list[ChatInfo], query: str, chat_type: str = "") -> list[ChatInfo]:
+        """Filter by type (empty = all) and by title, @username, id, or the
+        Saved Messages aliases."""
+        if chat_type in CHAT_TYPES:
+            items = [c for c in items if c.chat_type == chat_type]
         q = query.strip().casefold()
         if not q:
             return items
+        handle = q.lstrip("@")
         return [c for c in items if q in c.title.casefold() or q == str(c.chat_id)
+                or (handle and c.username and handle in c.username.casefold())
                 or (c.chat_type == "saved" and q in SAVED_MESSAGES_SEARCH)]

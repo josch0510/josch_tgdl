@@ -20,13 +20,12 @@ def test_from_entity_self_user() -> None:
 async def test_dialog_list_includes_saved_messages_first(app) -> None:
     app.client.add_dialog(-1001, "Alpha channel")
     app.client.add_user_dialog(ME, "Josch", is_self=True)
-    app.client.add_user_dialog(42, "A friend")            # other private chats stay hidden
+    app.client.add_user_dialog(42, "A friend")
     items = await app.dialogs.get()
-    assert [c.chat_type for c in items] == ["saved", "channel"]
+    assert [c.chat_type for c in items] == ["saved", "user", "channel"]  # saved first, then by name
     assert items[0] == ChatInfo(ME, SAVED_MESSAGES_TITLE, "saved")
     for q in ("收藏", "我的收藏", "saved", "SAVED MESSAGES", str(ME)):
         assert [c.chat_id for c in DialogCache.search(items, q)] == [ME], q
-    assert DialogCache.search(items, "friend") == []
 
 
 async def test_saved_messages_are_downloaded(app, base_dir) -> None:
