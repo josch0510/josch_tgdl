@@ -275,13 +275,11 @@
   "cli.opt.username": "管理員帳號（未指定時會互動詢問）",
   "cli.password.username_prompt": "網頁管理員帳號 [{default}]：",
   "cli.password.bad_username": "帳號格式錯誤：限 1 到 64 個字元，只能包含文字、數字與 . _ @ + -。",
-  "dash.monitored": "監控中的對話",
-  "dash.manage_monitors": "管理對話監控",
-  "dash.monitors_link": "查看監控中的對話與其設定",
   "monitor.custom": "自訂",
   "monitor.dir_short": "下載目錄",
   "monitor.filters_short": "過濾條件",
   "monitor.none": "無",
   "monitor.keyword_is": "檔名包含「{keyword}」",
-  "monitor.no_types_selected": "未選擇媒體類型：不會下載任何檔案"
+  "monitor.no_types_selected": "未選擇媒體類型：不會下載任何檔案",
+  "monitors.edit_settings": "編輯設定"
 }

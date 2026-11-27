@@ -1,3 +1,5 @@
+import re
+
 from test_web import logged_in, with_password  # noqa: F401
 from tgdl.telegram.client import ChatInfo
 from tgdl.web.monitor_view import describe
@@ -33,23 +35,14 @@ async def test_describe_dir_no_longer_allowed(app, tmp_path) -> None:
     assert v.dir_error == "dir.outside_allowed" and v.download_dir.endswith("outside")
 
 
-async def test_dashboard_lists_monitors_with_settings(web, app, base_dir, tmp_path,  # noqa: F811
-                                                      with_password) -> None:  # noqa: F811
-    await add(app, -1, "貓咪頻道", media_types=["photo"], keyword="cute", max_size=10 * 1024 * 1024)
+async def test_dashboard_shows_only_counts(web, app, with_password) -> None:  # noqa: F811
+    await add(app, -1, "貓咪頻道")
     await add(app, -2, "Disabled chat", enabled=False)
-    await add(app, -3, "Bad dir", download_dir=str(tmp_path / "outside"))
-    await web.get("/lang/zh-TW")
     await logged_in(web)
     html = (await web.get("/")).text
-    section = html.split('id="monitored"', 1)[1].split("</section>", 1)[0]
-    assert "貓咪頻道" in section and "Disabled chat" in section
-    assert "相片" in section and "自訂" in section and "檔名包含「cute」" in section and "≤ 10.0 MB" in section
-    assert "停用" in section and "目錄不在允許的下載根目錄之下" in section
-    assert section.index("貓咪頻道") < section.index("Disabled chat")   # enabled first
-    assert 'href="/monitors/-1/settings"' in section
-    assert 'href="#monitored"' in html
-    # the live-refresh partial contains the same section
-    assert 'id="monitored"' in (await web.get("/partials/dashboard")).text
+    assert "1 / 2" in html                                   # enabled / total, plain text
+    assert 'id="monitored"' not in html and 'href="#monitored"' not in html
+    assert "貓咪頻道" not in html and "settings-summary" not in html
 
 
 async def test_monitors_page_shows_effective_values(web, app, base_dir, with_password) -> None:  # noqa: F811
@@ -57,6 +50,8 @@ async def test_monitors_page_shows_effective_values(web, app, base_dir, with_pas
     await logged_in(web)
     html = (await web.get("/monitors")).text
     assert str(base_dir.resolve() / "chan") in html and 'class="settings-summary"' in html
+    # edit is a button, not a plain link
+    assert re.search(r'<a class="btn btn-small edit-btn" href="/monitors/-1/settings" role="button">', html)
 
 
 async def test_custom_type_checkboxes_prefilled_with_defaults(web, app, with_password) -> None:  # noqa: F811

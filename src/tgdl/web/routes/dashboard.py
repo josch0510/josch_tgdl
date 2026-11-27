@@ -13,7 +13,6 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response, StreamingResponse
 
 from ..common import core, render, require_session
-from ..monitor_view import describe
 from ..pagination import Pager, get_pager
 from ..security import SESSION_COOKIE, Session, SessionManager
 
@@ -29,7 +28,7 @@ SSE_TYPES = {"progress", "job_start", "job_end", "queue", "flood", "pool", "back
              "log"}
 
 
-async def dashboard_data(app: "App", pager: Pager, mon_pager: Pager) -> dict[str, Any]:
+async def dashboard_data(app: "App", pager: Pager) -> dict[str, Any]:
     tz = app.settings.tz
     today_start = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
     today_count, today_bytes = await app.repo.download_stats_since(today_start)
@@ -50,10 +49,6 @@ async def dashboard_data(app: "App", pager: Pager, mon_pager: Pager) -> dict[str
             offset=pager.set_total(await app.repo.count_download_chats()).offset),
         "per_chat_pager": pager,
         "backfills": [p for p in app.backfill.progress.values() if p["status"] == "running"],
-        "monitor_views": [describe(app, m) for m in mon_pager.slice(
-            sorted(app.monitors.monitors.values(),
-                   key=lambda m: (not m["enabled"], m["chat_title"].casefold())))],
-        "monitor_pager": mon_pager,
         "monitors_enabled": app.monitors.enabled_count,
         "monitors_total": len(app.monitors.monitors),
         "floods": app.flood_status(),
@@ -64,18 +59,14 @@ async def dashboard_data(app: "App", pager: Pager, mon_pager: Pager) -> dict[str
 @router.get("/")
 async def dashboard(request: Request, _s: Session = Depends(require_session)) -> Response:
     pager = get_pager(request, "perchat", "c_")
-    mon_pager = get_pager(request, "dashmonitors", "w_")
-    return render(request, "dashboard.html", d=await dashboard_data(core(request), pager, mon_pager),
-                  pager=pager, mon_pager=mon_pager)
+    return render(request, "dashboard.html", d=await dashboard_data(core(request), pager), pager=pager)
 
 
 @router.get("/partials/dashboard")
 async def dashboard_partial(request: Request, _s: Session = Depends(require_session)) -> Response:
     pager = get_pager(request, "perchat", "c_")
-    mon_pager = get_pager(request, "dashmonitors", "w_")
-    return render(request, "partials/dashboard_live.html",
-                  d=await dashboard_data(core(request), pager, mon_pager),
-                  pager=pager, mon_pager=mon_pager, query=dict(request.query_params))
+    return render(request, "partials/dashboard_live.html", d=await dashboard_data(core(request), pager),
+                  pager=pager, query=dict(request.query_params))
 
 
 @router.get("/partials/flood")

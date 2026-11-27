@@ -1,4 +1,4 @@
-{% from "_macros.html" import flood_banner, pager_nav, monitor_settings_summary %}
+{% from "_macros.html" import flood_banner, pager_nav %}
 {{ flood_banner(d.floods, t) }}
 <section class="stats">
   <div class="stat"><div class="stat-label">{{ t("dash.today_files") }}</div><div class="stat-value">{{ d.today_count }}</div></div>
@@ -6,7 +6,7 @@
   <div class="stat"><div class="stat-label">{{ t("dash.queue") }}</div><div class="stat-value">{{ d.pending }}</div></div>
   <div class="stat"><div class="stat-label">{{ t("dash.failed") }}</div><div class="stat-value {{ 'text-err' if d.failed else '' }}">{{ d.failed }}</div></div>
   <div class="stat"><div class="stat-label">{{ t("dash.workers") }}</div><div class="stat-value">{{ d.pool.active | length }} / {{ d.pool.concurrency }}</div></div>
-  <a class="stat" href="#monitored" title="{{ t('dash.monitors_link') }}"><div class="stat-label">{{ t("dash.monitors") }}</div><div class="stat-value">{{ d.monitors_enabled }} / {{ d.monitors_total }}</div></a>
+  <div class="stat"><div class="stat-label">{{ t("dash.monitors") }}</div><div class="stat-value">{{ d.monitors_enabled }} / {{ d.monitors_total }}</div></div>
 </section>
 
 <section class="card">
@@ -48,31 +48,6 @@
   </ul>
 </section>
 {% endif %}
-
-<section class="card" id="monitored">
-  <div class="card-head">
-    <h2>{{ t("dash.monitored") }}</h2>
-    <a href="/monitors">{{ t("dash.manage_monitors") }} →</a>
-  </div>
-  {% if d.monitor_views %}
-  <table class="table">
-    <thead><tr><th>{{ t("col.chat") }}</th><th>{{ t("col.status") }}</th><th>{{ t("monitors.overrides") }}</th><th></th></tr></thead>
-    <tbody>
-    {% for v in d.monitor_views %}
-      <tr>
-        <td><strong>{{ v.chat_title }}</strong><br><span class="muted small">{{ t("chat_type." ~ v.chat_type) }}</span></td>
-        <td class="{{ 'status-on' if v.enabled else 'status-off' }}">{{ t("monitors.enabled") if v.enabled else t("monitors.disabled") }}</td>
-        <td>{{ monitor_settings_summary(v, t) }}</td>
-        <td><a href="/monitors/{{ v.chat_id }}/settings">{{ t("monitors.edit") }}</a></td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  {{ pager_nav(d.monitor_pager, "/", query, t) }}
-  {% else %}
-  <p class="muted">{{ t("monitors.none") }} <a href="/monitors">{{ t("dash.manage_monitors") }}</a></p>
-  {% endif %}
-</section>
 
 <section class="card">
   <h2>{{ t("dash.per_chat") }}</h2>

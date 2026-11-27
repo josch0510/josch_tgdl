@@ -275,13 +275,11 @@
   "cli.opt.username": "Admin username (asked interactively if omitted)",
   "cli.password.username_prompt": "Web admin username [{default}]: ",
   "cli.password.bad_username": "Invalid username: 1–64 characters, letters, digits and . _ @ + - only.",
-  "dash.monitored": "Monitored chats",
-  "dash.manage_monitors": "Manage monitors",
-  "dash.monitors_link": "Show monitored chats and their settings",
   "monitor.custom": "custom",
   "monitor.dir_short": "Directory",
   "monitor.filters_short": "Filters",
   "monitor.none": "none",
   "monitor.keyword_is": "filename contains \"{keyword}\"",
-  "monitor.no_types_selected": "no media types: nothing is downloaded"
+  "monitor.no_types_selected": "no media types: nothing is downloaded",
+  "monitors.edit_settings": "Edit settings"
 }

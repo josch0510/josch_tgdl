@@ -21,7 +21,7 @@
         </td>
         <td>
           {{ monitor_settings_summary(views[m.chat_id], t) }}
-          <a href="/monitors/{{ m.chat_id }}/settings">{{ t("monitors.edit") }}</a>
+          <a class="btn btn-small edit-btn" href="/monitors/{{ m.chat_id }}/settings" role="button">{{ t("monitors.edit_settings") }}</a>
         </td>
         <td>
           {% set tid = running[m.chat_id] %}

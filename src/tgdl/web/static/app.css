@@ -114,7 +114,4 @@ a.btn { text-decoration: none; display: inline-block; }
 .settings-summary dd { margin: 0; }
 .settings-summary .path { word-break: break-all; }
 .tag { display: inline-block; padding: 0 .4em; border-radius: 4px; font-size: .75rem; background: var(--bg); border: 1px solid var(--border); color: var(--muted); vertical-align: middle; }
-a.stat { text-decoration: none; color: inherit; }
-a.stat:hover { border-color: var(--primary); }
-.status-on { color: var(--on); font-weight: 600; }
-.status-off { color: var(--off); }
+.edit-btn { margin-top: .4rem; }
