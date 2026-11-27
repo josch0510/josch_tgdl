@@ -47,3 +47,25 @@
 </div>
 {% endif %}
 {% endmacro %}
+
+{#- Effective settings of one monitor (MonitorView). "custom" marks per-chat overrides. -#}
+{% macro monitor_settings_summary(v, t) %}
+<dl class="settings-summary">
+  <dt>{{ t("settings.media_types") }}</dt>
+  <dd>{% if v.media_types %}{% for k in v.media_types %}{{ t("kind." ~ k) }}{{ "、" if not loop.last }}{% endfor %}{% else %}<span class="text-err">{{ t("monitor.no_types_selected") }}</span>{% endif %}
+      {% if v.types_custom %}<span class="tag">{{ t("monitor.custom") }}</span>{% endif %}</dd>
+  <dt>{{ t("monitor.dir_short") }}</dt>
+  <dd class="mono small path">{{ v.download_dir }}{% if v.dir_custom %} <span class="tag">{{ t("monitor.custom") }}</span>{% endif %}
+      {% if v.dir_error %}<br><span class="text-err">{{ t(v.dir_error) }}</span>{% endif %}</dd>
+  <dt>{{ t("settings.prefix") }}</dt>
+  <dd>{% if v.prefix %}<code>{{ v.prefix }}</code>{% else %}<span class="muted">{{ t("monitor.none") }}</span>{% endif %}
+      {% if v.prefix_custom %}<span class="tag">{{ t("monitor.custom") }}</span>{% endif %}</dd>
+  <dt>{{ t("monitor.filters_short") }}</dt>
+  <dd>{% if not v.has_filters %}<span class="muted">{{ t("monitor.none") }}</span>{% else %}
+      {%- set parts = [] -%}
+      {%- if v.min_size is not none %}{% set _ = parts.append("≥ " ~ (v.min_size | size)) %}{% endif -%}
+      {%- if v.max_size is not none %}{% set _ = parts.append("≤ " ~ (v.max_size | size)) %}{% endif -%}
+      {%- if v.keyword %}{% set _ = parts.append(t("monitor.keyword_is", keyword=v.keyword)) %}{% endif -%}
+      {{ parts | join("；") }}{% endif %}</dd>
+</dl>
+{% endmacro %}

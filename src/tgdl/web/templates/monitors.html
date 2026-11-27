@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, pager_nav with context %}
+{% from "_macros.html" import csrf, pager_nav, monitor_settings_summary with context %}
 {% block title %}{{ t("nav.monitors") }}{% endblock %}
 {% block content %}
 <h1>{{ t("nav.monitors") }}</h1>
@@ -13,21 +13,15 @@
     {% for m in monitors %}
       <tr>
         <td><strong>{{ m.chat_title }}</strong><br><span class="muted mono">{{ m.chat_id }}</span></td>
-        <td>{{ t("chat_type." ~ m.chat_type) }}</td>
+        <td class="nowrap-cell">{{ t("chat_type." ~ m.chat_type) }}</td>
         <td>
           <form method="post" action="/monitors/{{ m.chat_id }}/toggle" class="inline">{{ csrf() }}<input type="hidden" name="back" value="{{ back }}">
             <button type="submit" class="btn btn-small {{ 'btn-on' if m.enabled else 'btn-off' }}">{{ t("monitors.enabled") if m.enabled else t("monitors.disabled") }}</button>
           </form>
         </td>
-        <td class="small">
-          {% set ov = [] %}
-          {% if m.media_types is not none %}{% set _ = ov.append(t("monitor.types_custom")) %}{% endif %}
-          {% if m.download_dir %}{% set _ = ov.append(t("monitor.dir_custom")) %}{% endif %}
-          {% if m.filename_prefix is not none %}{% set _ = ov.append(t("monitor.prefix_custom")) %}{% endif %}
-          {% if m.min_size is not none or m.max_size is not none %}{% set _ = ov.append(t("monitor.size_filter")) %}{% endif %}
-          {% if m.keyword %}{% set _ = ov.append(t("monitor.keyword_filter")) %}{% endif %}
-          {{ ov | join(", ") if ov else t("monitors.defaults") }}
-          <br><a href="/monitors/{{ m.chat_id }}/settings">{{ t("monitors.edit") }}</a>
+        <td>
+          {{ monitor_settings_summary(views[m.chat_id], t) }}
+          <a href="/monitors/{{ m.chat_id }}/settings">{{ t("monitors.edit") }}</a>
         </td>
         <td>
           {% set tid = running[m.chat_id] %}

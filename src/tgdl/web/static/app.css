@@ -46,7 +46,7 @@ input[type=date] { width: auto; }
 .checks { display: flex; flex-wrap: wrap; gap: .35rem 1.2rem; margin-top: .35rem; }
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; }
 .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .75rem; }
-.btn { font: inherit; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 6px;
+.btn { white-space: nowrap; font: inherit; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 6px;
   padding: .45rem .9rem; cursor: pointer; }
 .btn:hover { border-color: var(--muted); }
 .btn-primary { background: var(--primary); border-color: var(--primary); color: var(--primary-text); }
@@ -68,7 +68,7 @@ form.inline { display: inline; }
 .right { text-align: right; }
 .table { width: 100%; border-collapse: collapse; }
 .table th, .table td { text-align: left; padding: .45rem .5rem; border-bottom: 1px solid var(--border); vertical-align: top; }
-.table th { font-size: .82rem; color: var(--muted); font-weight: 600; }
+.table th { white-space: nowrap; font-size: .82rem; color: var(--muted); font-weight: 600; }
 .table.nowrap th, .table.nowrap td { white-space: nowrap; }
 .table td:first-child { min-width: 7em; }
 .table .num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -109,3 +109,12 @@ a.btn { text-decoration: none; display: inline-block; }
 .pages { display: flex; flex-wrap: wrap; gap: .25rem; align-items: center; }
 .pages .current { background: var(--primary); border-color: var(--primary); color: var(--primary-text); cursor: default; }
 .pages .gap { padding: 0 .2rem; }
+.settings-summary { display: grid; grid-template-columns: max-content 1fr; gap: .15rem .75rem; margin: 0; font-size: .88rem; }
+.settings-summary dt { color: var(--muted); }
+.settings-summary dd { margin: 0; }
+.settings-summary .path { word-break: break-all; }
+.tag { display: inline-block; padding: 0 .4em; border-radius: 4px; font-size: .75rem; background: var(--bg); border: 1px solid var(--border); color: var(--muted); vertical-align: middle; }
+a.stat { text-decoration: none; color: inherit; }
+a.stat:hover { border-color: var(--primary); }
+.status-on { color: var(--on); font-weight: 600; }
+.status-off { color: var(--off); }

@@ -19,6 +19,7 @@ from ...telegram.client import DialogCache
 from ..common import (
     audit_web, core, current_url, redirect, render, require_csrf, require_session,
 )
+from ..monitor_view import describe
 from ..pagination import get_pager
 from ..security import Session
 
@@ -41,6 +42,7 @@ async def monitors_page(request: Request, _s: Session = Depends(require_session)
     app = core(request)
     mon_pager = get_pager(request, "monitors", "m_")
     monitors = mon_pager.slice(await app.repo.list_monitors())
+    views = {m["chat_id"]: describe(app, m) for m in monitors}
     running = {m["chat_id"]: app.backfill.running_for(m["chat_id"]) for m in monitors}
     bf_pager = get_pager(request, "backfills", "b_").set_total(await app.repo.count_backfills())
     backfills = await app.repo.list_backfills(bf_pager.per_page, bf_pager.offset)
@@ -51,7 +53,7 @@ async def monitors_page(request: Request, _s: Session = Depends(require_session)
     back = current_url(request)
     return render(request, "monitors.html", monitors=monitors, running=running,
                   backfills=backfills, live_backfill=app.backfill.progress, today=today,
-                  mon_pager=mon_pager, bf_pager=bf_pager, back=back)
+                  mon_pager=mon_pager, bf_pager=bf_pager, back=back, views=views)
 
 
 def _back(form: Any) -> str:
@@ -127,10 +129,12 @@ def _settings_ctx(request: Request, m: dict[str, Any], values: dict[str, Any],
             "defaults": app.settings.all(), "allowed_dirs": app.cfg.allowed_base_dirs}
 
 
-def _values_from_monitor(m: dict[str, Any]) -> dict[str, Any]:
+def _values_from_monitor(m: dict[str, Any], defaults: dict[str, Any]) -> dict[str, Any]:
     return {
         "use_default_types": m["media_types"] is None,
-        "media_types": m["media_types"] or [],
+        # pre-filled with the defaults, so customizing starts from the current behaviour
+        "media_types": m["media_types"] if m["media_types"] is not None
+        else list(defaults["default_media_types"]),
         "download_dir": m["download_dir"] or "",
         "filename_prefix": m["filename_prefix"] if m["filename_prefix"] is not None else "",
         "use_default_prefix": m["filename_prefix"] is None,
@@ -154,7 +158,7 @@ def _parse_mb(raw: str) -> int | None:
 async def monitor_settings(request: Request, chat_id: int,
                            _s: Session = Depends(require_session)) -> Response:
     m = await _monitor_or_404(request, chat_id)
-    return render(request, "monitor_settings.html", **_settings_ctx(request, m, _values_from_monitor(m)))
+    return render(request, "monitor_settings.html", **_settings_ctx(request, m, _values_from_monitor(m, core(request).settings.all())))
 
 
 @router.post("/monitors/{chat_id}/settings")
