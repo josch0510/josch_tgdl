@@ -157,7 +157,11 @@ async def test_history_pagination(web, app, base_dir, with_password) -> None:  #
     p1 = (await web.get("/history")).text
     assert "page=2" in p1
     p2 = (await web.get("/history", params={"page": 2})).text
-    assert p2.count("<tr>") == 1 + 5
+    assert p2.count("<tr>") == 1 + 25          # default 25 rows per page
+    p3 = (await web.get("/history", params={"page": 3})).text
+    assert p3.count("<tr>") == 1 + 5
+    p9 = (await web.get("/history", params={"page": 9})).text  # beyond the end -> last page
+    assert p9.count("<tr>") == 1 + 5
 
 
 # --------------------------------------------------------------- logs

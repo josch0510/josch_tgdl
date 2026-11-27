@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from ..i18n import from_accept_language, get_translator, normalize_lang
 from ..logging_setup import audit
 from ..storage.db import parse_iso
+from .pagination import Pager, qs_with, remember_per_page
 from .security import (
     CSRF_FIELD, CSRF_HEADER, LANG_COOKIE, SESSION_COOKIE, Session, SessionManager, csrf_ok,
     origin_ok,
@@ -61,6 +62,7 @@ def make_local_dt(app: "App") -> Any:
 
 
 templates.env.filters["size"] = human_size
+templates.env.globals["qs_with"] = qs_with
 templates.env.filters["duration"] = human_duration
 
 
@@ -120,7 +122,20 @@ def render(request: Request, name: str, status_code: int = 200, **ctx: Any) -> R
         path=request.url.path,
         flood=[f for f in app.flood_status() if f["active"]],
     )
-    return templates.TemplateResponse(request, name, ctx, status_code=status_code)
+    # current query without one-shot flash parameters (for pager links)
+    ctx.setdefault("query", {k: v for k, v in request.query_params.items()
+                             if k not in ("ok", "err", "n")})
+    response = templates.TemplateResponse(request, name, ctx, status_code=status_code)
+    remember_per_page(response, [v for v in ctx.values() if isinstance(v, Pager)],
+                      secure=app.cfg.cookie_secure)
+    return response
+
+
+def current_url(request: Request) -> str:
+    """Path + query of this request without one-shot flash parameters; used
+    as the "back" target of forms so actions keep filters and page."""
+    qs = qs_with(request.query_params, drop=("ok", "err", "n"))
+    return request.url.path + ("?" + qs if qs else "")
 
 
 def redirect(url: str, **flash: str) -> RedirectResponse:

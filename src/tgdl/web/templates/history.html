@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf with context %}
+{% from "_macros.html" import csrf, pager_nav with context %}
 {% block title %}{{ t("nav.history") }}{% endblock %}
 {% block content %}
 <h1>{{ t("nav.history") }}</h1>
@@ -101,12 +101,6 @@
   </table>
   {% endif %}
 
-  {% if pages > 1 %}
-  <nav class="pager">
-    {% if page > 1 %}<a class="btn btn-small" href="/history?{{ qs_prev }}">← {{ t("history.prev") }}</a>{% endif %}
-    <span class="muted">{{ t("history.page", page=page, pages=pages) }}</span>
-    {% if page < pages %}<a class="btn btn-small" href="/history?{{ qs_next }}">{{ t("history.next") }} →</a>{% endif %}
-  </nav>
-  {% endif %}
+  {{ pager_nav(pager, "/history", query, t) }}
 </section>
 {% endblock %}

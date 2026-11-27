@@ -1,4 +1,4 @@
-{% from "_macros.html" import csrf with context %}
+{% from "_macros.html" import csrf, pager_nav with context %}
 {% if error %}
 <div class="banner banner-err">{{ t(error) }}</div>
 {% elif not items %}
@@ -24,5 +24,5 @@
   {% endfor %}
   </tbody>
 </table>
-{% if total > items | length %}<p class="muted small">{{ t("monitors.more_results", shown=items|length, total=total) }}</p>{% endif %}
+{{ pager_nav(pager, "/monitors/dialogs", query, t, target="#dialog-results") }}
 {% endif %}

@@ -22,6 +22,13 @@
     if (msg && !window.confirm(msg)) e.preventDefault();
   }, true);
 
+  // Rows-per-page selectors submit their (non-htmx) form on change.
+  document.addEventListener("change", function (e) {
+    if (e.target.matches && e.target.matches("select[data-autosubmit]") && e.target.form) {
+      e.target.form.submit();
+    }
+  });
+
   // "Use default" checkboxes disable the custom inputs: data-toggles="#id"
   function syncToggles(root) {
     (root || document).querySelectorAll("input[data-toggles]").forEach(function (cb) {

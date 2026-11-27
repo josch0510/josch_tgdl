@@ -131,7 +131,6 @@
   "monitors.search": "Search joined groups and channels",
   "monitors.refresh": "Reload list",
   "monitors.no_results": "No matching chats.",
-  "monitors.more_results": "Showing {shown} of {total}. Refine your search.",
   "monitors.already": "Monitored",
   "monitors.dialogs_flood": "Telegram rate limit: the chat list cannot be loaded right now.",
   "monitors.dialogs_failed": "Could not load the chat list. Check the Telegram connection.",
@@ -274,5 +273,8 @@
   "flash.file_exists": "The file still exists; nothing to do.",
   "cli.serve.all_interfaces": "Listening on all interfaces: open http://SERVER-IP:{port}/ (IP addresses always work). Host names allowed: {hosts}. Add other names to ALLOWED_HOSTS in .env.",
   "settings.field_resume_downloads": "Resume interrupted downloads",
-  "settings.resume_hint": "When tgdl is stopped, crashes, or hits a network error or FloodWait, unfinished .part files are kept and continued later (the last 512 KB is fetched again). Photos and files of unknown size always restart. Turned off: unfinished files are deleted and downloaded again from the start."
+  "settings.resume_hint": "When tgdl is stopped, crashes, or hits a network error or FloodWait, unfinished .part files are kept and continued later (the last 512 KB is fetched again). Photos and files of unknown size always restart. Turned off: unfinished files are deleted and downloaded again from the start.",
+  "pager.per_page": "Rows per page",
+  "pager.range": "{first}–{last} of {total}",
+  "pager.pages": "Pages"
 }

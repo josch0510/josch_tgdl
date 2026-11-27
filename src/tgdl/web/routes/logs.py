@@ -10,6 +10,7 @@ from fastapi.responses import Response
 
 from ...logreader import LEVELS, read_log
 from ..common import core, render, require_session
+from ..pagination import get_pager, qs_with
 from ..security import Session
 
 router = APIRouter()
@@ -48,15 +49,31 @@ def _query(p: dict, **override: object) -> str:
     return urlencode(merged)
 
 
+def _page_query(request: Request, p: dict) -> dict[str, str]:
+    """Filters plus pagination parameters, for pager links and live refresh."""
+    q = {k: str(v) for k, v in p.items()}
+    q["live"] = "1" if p["live"] else "0"
+    for k in ("page", "per"):
+        if request.query_params.get(k):
+            q[k] = request.query_params[k]
+    return q
+
+
 @router.get("/logs")
 async def logs_page(request: Request, _s: Session = Depends(require_session)) -> Response:
     p = _params(request)
+    pager = get_pager(request, "logs")
+    entries = pager.slice(await _entries(request, p))
+    query = _page_query(request, p)
     return render(request, "logs.html", p=p, levels=LEVELS, line_choices=LINE_CHOICES,
-                  entries=await _entries(request, p), qs=_query(p),
+                  entries=entries, pager=pager, query=query, live_qs=qs_with(query),
                   toggle_live_qs=_query(p, live=not p["live"]))
 
 
 @router.get("/partials/logs")
 async def logs_partial(request: Request, _s: Session = Depends(require_session)) -> Response:
     p = _params(request)
-    return render(request, "partials/log_lines.html", entries=await _entries(request, p))
+    pager = get_pager(request, "logs")
+    entries = pager.slice(await _entries(request, p))
+    return render(request, "partials/log_lines.html", entries=entries, pager=pager,
+                  query=_page_query(request, p))

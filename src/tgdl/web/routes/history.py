@@ -15,13 +15,13 @@ from fastapi.responses import Response
 from ...core.categories import CATEGORIES
 from ...storage.repo import DuplicateDownload, HistoryFilter
 from ...telegram.backfill import BackfillError, local_range_to_utc
-from ..common import audit_web, core, redirect, render, require_csrf, require_session
+from ..common import (
+    audit_web, core, current_url, redirect, render, require_csrf, require_session,
+)
+from ..pagination import get_pager
 from ..security import Session
 
 router = APIRouter()
-
-PAGE_SIZE = 50
-
 
 def _int(value: str | None) -> int | None:
     try:
@@ -67,25 +67,23 @@ def _filters(request: Request) -> tuple[dict[str, Any], HistoryFilter, str | Non
 async def history_page(request: Request, _s: Session = Depends(require_session)) -> Response:
     app = core(request)
     raw, f, error = _filters(request)
-    page = max(1, _int(request.query_params.get("page")) or 1)
-    offset = (page - 1) * PAGE_SIZE
-    if raw["tab"] == "failed":
-        rows, total = await app.repo.search_failed_jobs(f, limit=PAGE_SIZE, offset=offset)
-    else:
-        rows, total = await app.repo.search_downloads(f, limit=PAGE_SIZE, offset=offset)
+    pager = get_pager(request, "history")
+    search = app.repo.search_failed_jobs if raw["tab"] == "failed" else app.repo.search_downloads
+    rows, total = await search(f, limit=pager.per_page, offset=pager.offset)
+    pager.set_total(total)
+    if not rows and total:  # page beyond the end (e.g. after retries): show the last page
+        rows, _ = await search(f, limit=pager.per_page, offset=pager.offset)
+    if raw["tab"] == "done":
         exists = await asyncio.to_thread(lambda: [os.path.exists(r["saved_path"]) for r in rows])
         for r, e in zip(rows, exists, strict=True):
             r["exists"] = e
-    pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     base_qs = {k: v for k, v in raw.items() if v}
     return render(
-        request, "history.html", raw=raw, rows=rows, total=total, page=page, pages=pages,
+        request, "history.html", raw=raw, rows=rows, total=total, pager=pager,
         error=error, categories=CATEGORIES, chats=await app.repo.history_chats(),
         failed_count=(await app.repo.job_counts()).get("failed", 0),
-        qs_prev=urlencode({**base_qs, "page": page - 1}),
-        qs_next=urlencode({**base_qs, "page": page + 1}),
         tab_qs={t: urlencode({**base_qs, "tab": t}) for t in ("done", "failed")},
-        back=request.url.path + ("?" + request.url.query if request.url.query else ""),
+        back=current_url(request),
     )
 
 

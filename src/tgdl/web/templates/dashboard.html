@@ -2,7 +2,7 @@
 {% block title %}{{ t("nav.dashboard") }}{% endblock %}
 {% block content %}
 <h1>{{ t("nav.dashboard") }}</h1>
-<div id="live" data-live-url="/partials/dashboard" data-live-events="progress,job_start,job_end,queue,flood,pool,backfill,monitors">
+<div id="live" data-live-url="/partials/dashboard{{ '?' ~ qs_with(query) if qs_with(query) else '' }}" data-live-events="progress,job_start,job_end,queue,flood,pool,backfill,monitors">
   {% include "partials/dashboard_live.html" %}
 </div>
 {% endblock %}

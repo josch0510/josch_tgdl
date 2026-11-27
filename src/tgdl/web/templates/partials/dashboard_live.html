@@ -1,4 +1,4 @@
-{% from "_macros.html" import flood_banner %}
+{% from "_macros.html" import flood_banner, pager_nav %}
 {{ flood_banner(d.floods, t) }}
 <section class="stats">
   <div class="stat"><div class="stat-label">{{ t("dash.today_files") }}</div><div class="stat-value">{{ d.today_count }}</div></div>
@@ -60,6 +60,7 @@
     {% endfor %}
     </tbody>
   </table>
+  {{ pager_nav(d.per_chat_pager, "/", query, t) }}
   {% else %}
   <p class="muted">{{ t("dash.no_downloads") }}</p>
   {% endif %}

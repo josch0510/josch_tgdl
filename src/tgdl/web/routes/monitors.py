@@ -16,7 +16,10 @@ from ...downloader.flood import FLOOD_ERRORS
 from ...storage.db import parse_iso
 from ...telegram.backfill import BackfillError
 from ...telegram.client import DialogCache
-from ..common import audit_web, core, redirect, render, require_csrf, require_session
+from ..common import (
+    audit_web, core, current_url, redirect, render, require_csrf, require_session,
+)
+from ..pagination import get_pager
 from ..security import Session
 
 router = APIRouter()
@@ -36,16 +39,25 @@ async def _monitor_or_404(request: Request, chat_id: int) -> dict[str, Any]:
 @router.get("/monitors")
 async def monitors_page(request: Request, _s: Session = Depends(require_session)) -> Response:
     app = core(request)
-    monitors = await app.repo.list_monitors()
-    running = {chat_id: app.backfill.running_for(chat_id) for chat_id in
-               (m["chat_id"] for m in monitors)}
-    backfills = await app.repo.list_backfills(20)
+    mon_pager = get_pager(request, "monitors", "m_")
+    monitors = mon_pager.slice(await app.repo.list_monitors())
+    running = {m["chat_id"]: app.backfill.running_for(m["chat_id"]) for m in monitors}
+    bf_pager = get_pager(request, "backfills", "b_").set_total(await app.repo.count_backfills())
+    backfills = await app.repo.list_backfills(bf_pager.per_page, bf_pager.offset)
     for b in backfills:
         # date_to is stored as the exclusive end (next local midnight)
         b["date_to_incl"] = parse_iso(b["date_to"]) - timedelta(seconds=1)
     today = datetime.now(app.settings.tz).date().isoformat()
+    back = current_url(request)
     return render(request, "monitors.html", monitors=monitors, running=running,
-                  backfills=backfills, live_backfill=app.backfill.progress, today=today)
+                  backfills=backfills, live_backfill=app.backfill.progress, today=today,
+                  mon_pager=mon_pager, bf_pager=bf_pager, back=back)
+
+
+def _back(form: Any) -> str:
+    """Return to the page the action was made from (pagination kept)."""
+    target = str(form.get("back", "/monitors"))
+    return target if target.startswith("/monitors") and not target.startswith("//") else "/monitors"
 
 
 @router.get("/monitors/dialogs")
@@ -53,7 +65,7 @@ async def dialogs_partial(request: Request, q: str = "", refresh: int = 0,
                           _s: Session = Depends(require_session)) -> Response:
     app = core(request)
     error = None
-    items = []
+    items: list = []
     try:
         items = DialogCache.search(await app.dialogs.get(refresh=bool(refresh)), q[:100])
     except FLOOD_ERRORS:
@@ -62,8 +74,10 @@ async def dialogs_partial(request: Request, q: str = "", refresh: int = 0,
         log.exception("Listing dialogs failed")
         error = "monitors.dialogs_failed"
     monitored = set(app.monitors.monitors)
-    return render(request, "partials/dialog_list.html", items=items[:100], total=len(items),
-                  monitored=monitored, error=error)
+    pager = get_pager(request, "dialogs")
+    query = {k: v for k, v in request.query_params.items() if k != "refresh"}
+    return render(request, "partials/dialog_list.html", items=pager.slice(items), pager=pager,
+                  monitored=monitored, error=error, query=query)
 
 
 @router.post("/monitors/add")
@@ -89,7 +103,7 @@ async def toggle_monitor(request: Request, chat_id: int,
     enabled = not m["enabled"]
     await core(request).monitors.set_enabled(chat_id, enabled)
     audit_web(request, "monitor_enable" if enabled else "monitor_disable", f"chat={chat_id}")
-    return redirect("/monitors", ok="monitor_enabled" if enabled else "monitor_disabled")
+    return redirect(_back(await request.form()), ok="monitor_enabled" if enabled else "monitor_disabled")
 
 
 @router.post("/monitors/{chat_id}/delete")
@@ -102,7 +116,7 @@ async def delete_monitor(request: Request, chat_id: int,
         await app.backfill.cancel(task_id)
     await app.monitors.remove(chat_id)
     audit_web(request, "monitor_remove", f"chat={chat_id}")
-    return redirect("/monitors", ok="monitor_removed")
+    return redirect(_back(await request.form()), ok="monitor_removed")
 
 
 # ------------------------------------------------------ per-chat settings
@@ -207,19 +221,20 @@ async def start_backfill(request: Request, chat_id: int,
         d_from = date.fromisoformat(str(form.get("date_from", "")))
         d_to = date.fromisoformat(str(form.get("date_to", "")))
     except ValueError:
-        return redirect("/monitors", err="bad_dates")
+        return redirect(_back(form), err="bad_dates")
     try:
         await core(request).backfill.start(chat_id, d_from, d_to)
     except BackfillError as exc:
-        return redirect("/monitors", err=exc.code.split(".", 1)[1])
+        return redirect(_back(form), err=exc.code.split(".", 1)[1])
     audit_web(request, "backfill_start", f"chat={chat_id} from={d_from} to={d_to}")
-    return redirect("/monitors", ok="backfill_started")
+    return redirect(_back(form), ok="backfill_started")
 
 
 @router.post("/backfill/{task_id}/cancel")
 async def cancel_backfill(request: Request, task_id: int,
                           _s: Session = Depends(require_csrf)) -> Response:
+    back = _back(await request.form())
     if await core(request).backfill.cancel(task_id):
         audit_web(request, "backfill_cancel", f"task={task_id}")
-        return redirect("/monitors", ok="backfill_cancelled")
-    return redirect("/monitors", err="backfill_not_running")
+        return redirect(back, ok="backfill_cancelled")
+    return redirect(back, err="backfill_not_running")

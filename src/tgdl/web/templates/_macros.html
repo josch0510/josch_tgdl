@@ -9,3 +9,41 @@
 </div>
 {% endfor %}
 {% endmacro %}
+
+{#- Shared pager: rows-per-page selector + page links.
+    p: Pager; base: URL path the links point to; target: CSS selector for htmx
+    (lists loaded into a fragment), or none for normal page links. -#}
+{% macro pager_nav(p, base, query, t, target=none) %}
+{% if p.total > p.choices[0] or p.page > 1 %}
+<div class="pager-bar">
+  <span class="muted small">{{ t("pager.range", first=p.first_item, last=p.last_item, total=p.total) }}</span>
+  <form method="get" action="{{ base }}" class="per-page"
+        {% if target %}hx-get="{{ base }}" hx-target="{{ target }}" hx-trigger="change"{% endif %}>
+    {% for k, v in query.items() if k not in (p.per_param, p.page_param) %}
+    <input type="hidden" name="{{ k }}" value="{{ v }}">
+    {% endfor %}
+    <label class="inline-label">{{ t("pager.per_page") }}
+      <select name="{{ p.per_param }}" {% if not target %}data-autosubmit{% endif %}>
+        {% for n in p.choices %}<option value="{{ n }}" {% if n == p.per_page %}selected{% endif %}>{{ n }}</option>{% endfor %}
+      </select>
+    </label>
+    <noscript><button type="submit" class="btn btn-small">{{ t("history.search") }}</button></noscript>
+  </form>
+  {% if p.pages > 1 %}
+  <nav class="pages" aria-label="{{ t('pager.pages') }}">
+    {% macro link(n, label, cls="") -%}
+      {%- set url = base ~ "?" ~ qs_with(query, {p.page_param: n}) -%}
+      <a class="btn btn-small {{ cls }}" href="{{ url }}" {% if target %}hx-get="{{ url }}" hx-target="{{ target }}"{% endif %}>{{ label }}</a>
+    {%- endmacro %}
+    {% if p.page > 1 %}{{ link(p.page - 1, "‹ " ~ t("history.prev")) }}{% endif %}
+    {% for n in p.window() %}
+      {% if n is none %}<span class="muted gap">…</span>
+      {% elif n == p.page %}<span class="btn btn-small current" aria-current="page">{{ n }}</span>
+      {% else %}{{ link(n, n) }}{% endif %}
+    {% endfor %}
+    {% if p.page < p.pages %}{{ link(p.page + 1, t("history.next") ~ " ›") }}{% endif %}
+  </nav>
+  {% endif %}
+</div>
+{% endif %}
+{% endmacro %}

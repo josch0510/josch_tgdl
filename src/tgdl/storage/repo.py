@@ -330,16 +330,21 @@ class Repository:
             "WHERE downloaded_at >= ?", (iso(since),))
         return (row["n"], row["total"]) if row else (0, 0)
 
-    async def per_chat_stats(self, today_start: datetime) -> list[dict[str, Any]]:
+    async def per_chat_stats(self, today_start: datetime, *, limit: int = 50,
+                             offset: int = 0) -> list[dict[str, Any]]:
         rows = await self.db.fetchall(
             "SELECT d.chat_id, COALESCE(m.chat_title, MAX(d.chat_title)) AS chat_title, "
             "COUNT(*) AS files, COALESCE(SUM(d.file_size), 0) AS bytes, "
             "SUM(CASE WHEN d.downloaded_at >= ? THEN 1 ELSE 0 END) AS today_files, "
             "MAX(d.downloaded_at) AS last_at "
             "FROM downloads d LEFT JOIN monitors m ON m.chat_id = d.chat_id "
-            "GROUP BY d.chat_id ORDER BY last_at DESC LIMIT 50",
-            (iso(today_start),))
+            "GROUP BY d.chat_id ORDER BY last_at DESC, d.chat_id LIMIT ? OFFSET ?",
+            (iso(today_start), limit, offset))
         return [dict(r) for r in rows]
+
+    async def count_download_chats(self) -> int:
+        row = await self.db.fetchone("SELECT COUNT(DISTINCT chat_id) AS n FROM downloads")
+        return row["n"] if row else 0
 
     # ------------------------------------------------------------ backfill
     async def create_backfill(self, chat_id: int, date_from: datetime, date_to: datetime) -> int:
@@ -355,11 +360,15 @@ class Repository:
             "error = COALESCE(?, error), finished_at = COALESCE(?, finished_at) WHERE id = ?",
             (scanned, enqueued, status, error, finished, task_id))
 
-    async def list_backfills(self, limit: int = 50) -> list[dict[str, Any]]:
+    async def list_backfills(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
         rows = await self.db.fetchall(
             "SELECT b.*, m.chat_title FROM backfill_tasks b LEFT JOIN monitors m USING (chat_id) "
-            "ORDER BY b.id DESC LIMIT ?", (limit,))
+            "ORDER BY b.id DESC LIMIT ? OFFSET ?", (limit, offset))
         return [dict(r) for r in rows]
+
+    async def count_backfills(self) -> int:
+        row = await self.db.fetchone("SELECT COUNT(*) AS n FROM backfill_tasks")
+        return row["n"] if row else 0
 
     async def fail_stale_backfills(self) -> None:
         await self.db.execute(

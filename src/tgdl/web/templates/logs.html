@@ -28,7 +28,7 @@
 </form>
 <p class="hint">{{ t("logs.english_note") }}{% if p.live %} · <span class="text-ok">{{ t("logs.live_active") }}</span>{% endif %}</p>
 <section class="card">
-  <div id="log-lines" {% if p.live %}data-live-url="/partials/logs?{{ qs }}" data-live-events="log"{% endif %}>
+  <div id="log-lines" {% if p.live %}data-live-url="/partials/logs?{{ live_qs }}" data-live-events="log"{% endif %}>
     {% include "partials/log_lines.html" %}
   </div>
 </section>

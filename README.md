@@ -77,6 +77,11 @@ then open <http://localhost:8080>.
 
 All settings are stored in SQLite and take effect immediately.
 
+Every list (monitored chats, chat search results, backfill tasks, per-chat
+stats, history, logs) is paginated: 25 rows by default, 10 / 25 / 50 selectable;
+the choice is remembered per list in the browser, and actions return to the
+same page.
+
 ## File organization
 
 Default path template:
@@ -268,6 +273,8 @@ ssh -N -L 8080:127.0.0.1:8080 您的帳號@debian主機
 | 設定 | 預設目錄、同時下載數、媒體類型、路徑模板、前綴、時區、分類對應、預設語言 |
 
 所有設定都存在 SQLite 中，修改後立即生效，不需要重新啟動。
+
+所有列表（監控中的對話、對話搜尋結果、歷史回補任務、各對話統計、下載紀錄、日誌）都有分頁：預設每頁 25 列，可改為 10、25 或 50 列，每個列表的選擇會分別記在瀏覽器中；在某一頁執行操作後，會回到同一頁。
 
 ### 檔案整理
 

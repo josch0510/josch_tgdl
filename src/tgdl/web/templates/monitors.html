@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf with context %}
+{% from "_macros.html" import csrf, pager_nav with context %}
 {% block title %}{{ t("nav.monitors") }}{% endblock %}
 {% block content %}
 <h1>{{ t("nav.monitors") }}</h1>
 
 <section class="card">
   <h2>{{ t("monitors.current") }}</h2>
-  {% if monitors %}
+  {% if mon_pager.total %}
   <table class="table">
     <thead><tr><th>{{ t("col.chat") }}</th><th>{{ t("col.type") }}</th><th>{{ t("col.status") }}</th><th>{{ t("monitors.overrides") }}</th><th>{{ t("monitors.backfill") }}</th><th></th></tr></thead>
     <tbody>
@@ -15,7 +15,7 @@
         <td><strong>{{ m.chat_title }}</strong><br><span class="muted mono">{{ m.chat_id }}</span></td>
         <td>{{ t("chat_type." ~ m.chat_type) }}</td>
         <td>
-          <form method="post" action="/monitors/{{ m.chat_id }}/toggle" class="inline">{{ csrf() }}
+          <form method="post" action="/monitors/{{ m.chat_id }}/toggle" class="inline">{{ csrf() }}<input type="hidden" name="back" value="{{ back }}">
             <button type="submit" class="btn btn-small {{ 'btn-on' if m.enabled else 'btn-off' }}">{{ t("monitors.enabled") if m.enabled else t("monitors.disabled") }}</button>
           </form>
         </td>
@@ -34,11 +34,11 @@
           {% if tid is not none %}
             {% set p = live_backfill[tid] %}
             <span class="small">{{ t("backfill.progress", scanned=p.scanned, enqueued=p.enqueued) }}</span>
-            <form method="post" action="/backfill/{{ tid }}/cancel" class="inline">{{ csrf() }}
+            <form method="post" action="/backfill/{{ tid }}/cancel" class="inline">{{ csrf() }}<input type="hidden" name="back" value="{{ back }}">
               <button type="submit" class="btn btn-small">{{ t("common.cancel") }}</button>
             </form>
           {% else %}
-          <form method="post" action="/monitors/{{ m.chat_id }}/backfill" class="backfill-form">{{ csrf() }}
+          <form method="post" action="/monitors/{{ m.chat_id }}/backfill" class="backfill-form">{{ csrf() }}<input type="hidden" name="back" value="{{ back }}">
             <input type="date" name="date_from" required max="{{ today }}" aria-label="{{ t('monitors.date_from') }}">
             <span>–</span>
             <input type="date" name="date_to" required max="{{ today }}" value="{{ today }}" aria-label="{{ t('monitors.date_to') }}">
@@ -47,7 +47,7 @@
           {% endif %}
         </td>
         <td>
-          <form method="post" action="/monitors/{{ m.chat_id }}/delete" class="inline" data-confirm="{{ t('monitors.confirm_remove', chat=m.chat_title) }}">{{ csrf() }}
+          <form method="post" action="/monitors/{{ m.chat_id }}/delete" class="inline" data-confirm="{{ t('monitors.confirm_remove', chat=m.chat_title) }}">{{ csrf() }}<input type="hidden" name="back" value="{{ back }}">
             <button type="submit" class="btn btn-small btn-danger">{{ t("common.remove") }}</button>
           </form>
         </td>
@@ -55,6 +55,7 @@
     {% endfor %}
     </tbody>
   </table>
+  {{ pager_nav(mon_pager, "/monitors", query, t) }}
   {% else %}
   <p class="muted">{{ t("monitors.none") }}</p>
   {% endif %}
@@ -70,9 +71,9 @@
   <div id="dialog-results"><p class="muted">{{ t("common.loading") }}</p></div>
 </section>
 
-<section class="card" data-live-url="/monitors" data-live-events="backfill" data-live-select="#backfill-history" id="backfill-history">
+<section class="card" data-live-url="{{ back }}" data-live-events="backfill" data-live-select="#backfill-history" id="backfill-history">
   <h2>{{ t("monitors.backfill_history") }}</h2>
-  {% if backfills %}
+  {% if bf_pager.total %}
   <table class="table nowrap">
     <thead><tr><th>{{ t("col.chat") }}</th><th>{{ t("monitors.range") }}</th><th>{{ t("col.status") }}</th><th class="num">{{ t("backfill.scanned") }}</th><th class="num">{{ t("backfill.enqueued") }}</th><th>{{ t("col.started") }}</th></tr></thead>
     <tbody>
@@ -89,6 +90,7 @@
     {% endfor %}
     </tbody>
   </table>
+  {{ pager_nav(bf_pager, "/monitors", query, t) }}
   {% else %}
   <p class="muted">{{ t("monitors.no_backfills") }}</p>
   {% endif %}

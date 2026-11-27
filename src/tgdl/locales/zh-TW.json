@@ -131,7 +131,6 @@
   "monitors.search": "搜尋已加入的群組與頻道",
   "monitors.refresh": "重新載入清單",
   "monitors.no_results": "沒有符合的對話。",
-  "monitors.more_results": "顯示 {total} 筆中的 {shown} 筆，請輸入更精確的關鍵字。",
   "monitors.already": "已監控",
   "monitors.dialogs_flood": "Telegram 速率限制中，暫時無法載入對話清單。",
   "monitors.dialogs_failed": "無法載入對話清單，請檢查 Telegram 連線。",
@@ -274,5 +273,8 @@
   "flash.file_exists": "檔案仍然存在，不需要重新下載。",
   "cli.serve.all_interfaces": "正在監聽所有網路介面：請用 http://伺服器IP:{port}/ 連線（IP 位址一律可用）。允許的主機名稱：{hosts}。其他名稱請加入 .env 的 ALLOWED_HOSTS。",
   "settings.field_resume_downloads": "續傳中斷的下載",
-  "settings.resume_hint": "tgdl 停止、異常中斷、網路錯誤或遇到 FloodWait 時，保留未完成的 .part 檔，之後從中斷處繼續（最後 512 KB 會重新下載）。相片與大小不明的檔案一律重新下載。關閉時，未完成的檔案會被刪除並從頭下載。"
+  "settings.resume_hint": "tgdl 停止、異常中斷、網路錯誤或遇到 FloodWait 時，保留未完成的 .part 檔，之後從中斷處繼續（最後 512 KB 會重新下載）。相片與大小不明的檔案一律重新下載。關閉時，未完成的檔案會被刪除並從頭下載。",
+  "pager.per_page": "每頁列數",
+  "pager.range": "第 {first}–{last} 筆，共 {total} 筆",
+  "pager.pages": "頁碼"
 }

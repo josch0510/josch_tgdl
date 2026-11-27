@@ -102,3 +102,10 @@ a.btn { text-decoration: none; display: inline-block; }
 .lvl-warning { background: var(--warn-bg); color: var(--warn); }
 .lvl-error, .lvl-critical { background: var(--err-bg); color: var(--err); }
 .lvl-debug { color: var(--muted); }
+.pager-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; margin-top: .75rem; }
+.per-page { display: flex; align-items: center; gap: .4rem; }
+.inline-label { flex-direction: row; align-items: center; gap: .4rem; font-weight: 400; font-size: .88rem; color: var(--muted); }
+.inline-label select { width: auto; padding: .2rem .4rem; }
+.pages { display: flex; flex-wrap: wrap; gap: .25rem; align-items: center; }
+.pages .current { background: var(--primary); border-color: var(--primary); color: var(--primary-text); cursor: default; }
+.pages .gap { padding: 0 .2rem; }
