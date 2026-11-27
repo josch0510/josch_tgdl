@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from .db import Database, iso
+from .db import Database, iso, parse_iso
 
 ACTIVE_STATUSES = ("pending", "running")
 
@@ -29,6 +29,7 @@ class NewJob:
     file_size: int | None
     message_date: datetime
     source: str = "live"
+    priority: int = 0
 
 
 class Repository:
@@ -155,11 +156,11 @@ class Repository:
         try:
             job_id = await self.db.execute(
                 "INSERT INTO jobs(chat_id, chat_title, message_id, grouped_id, media_unique_id, "
-                "media_kind, file_name, file_size, message_date, source, status, attempts, "
-                "created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?, 'pending', 0, ?, ?)",
+                "media_kind, file_name, file_size, message_date, source, status, attempts, priority, "
+                "created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?, 'pending', 0, ?, ?, ?)",
                 (job.chat_id, job.chat_title, job.message_id, job.grouped_id, job.media_unique_id,
                  job.media_kind, job.file_name, job.file_size, iso(job.message_date), job.source,
-                 now, now),
+                 job.priority, now, now),
             )
         except sqlite3.IntegrityError:
             reason = await self.find_duplicate(job.chat_id, job.message_id, job.media_unique_id)
@@ -178,12 +179,93 @@ class Repository:
             (status, error, 1 if count_attempt else 0, iso(), job_id),
         )
 
-    async def reset_running_jobs(self) -> int:
-        """After a crash/restart, running jobs go back to pending."""
+    async def reset_running_jobs(self) -> list[str]:
+        """After a crash/restart, running jobs go back to pending (the
+        interrupted attempt is not counted). Returns leftover .part paths."""
         async with self.db.transaction() as conn:
-            cur = await conn.execute(
-                "UPDATE jobs SET status = 'pending', updated_at = ? WHERE status = 'running'", (iso(),))
-            return cur.rowcount
+            rows = await conn.execute_fetchall(
+                "SELECT part_path FROM jobs WHERE status = 'running' AND part_path IS NOT NULL")
+            parts = [r[0] for r in rows]
+            await conn.execute(
+                "UPDATE jobs SET status = 'pending', part_path = NULL, "
+                "attempts = MAX(attempts - 1, 0), updated_at = ? WHERE status = 'running'", (iso(),))
+        return parts
+
+    async def claim_job(self) -> dict[str, Any] | None:
+        """Atomically take the next runnable pending job (counts an attempt)."""
+        now = iso()
+        row = await self.db.execute_returning(
+            "UPDATE jobs SET status = 'running', attempts = attempts + 1, updated_at = ? "
+            "WHERE id = (SELECT id FROM jobs WHERE status = 'pending' "
+            "AND (not_before IS NULL OR not_before <= ?) ORDER BY priority, id LIMIT 1) "
+            "RETURNING *",
+            (now, now),
+        )
+        return dict(row) if row else None
+
+    async def release_job(self, job_id: int) -> None:
+        """Give a running job back to the queue without counting the attempt
+        (shutdown, FloodWait)."""
+        await self.db.execute(
+            "UPDATE jobs SET status = 'pending', part_path = NULL, attempts = MAX(attempts - 1, 0), "
+            "updated_at = ? WHERE id = ? AND status = 'running'", (iso(), job_id))
+
+    async def schedule_retry(self, job_id: int, not_before: datetime, error: str) -> None:
+        await self.db.execute(
+            "UPDATE jobs SET status = 'pending', not_before = ?, last_error = ?, part_path = NULL, "
+            "updated_at = ? WHERE id = ?", (iso(not_before), error, iso(), job_id))
+
+    async def set_part_path(self, job_id: int, part_path: str | None) -> None:
+        await self.db.execute("UPDATE jobs SET part_path = ? WHERE id = ?", (part_path, job_id))
+
+    async def next_retry_time(self) -> datetime | None:
+        row = await self.db.fetchone(
+            "SELECT MIN(not_before) AS t FROM jobs WHERE status = 'pending' AND not_before > ?", (iso(),))
+        return parse_iso(row["t"]) if row and row["t"] else None
+
+    async def job_counts(self) -> dict[str, int]:
+        rows = await self.db.fetchall("SELECT status, COUNT(*) AS n FROM jobs GROUP BY status")
+        return {r["status"]: r["n"] for r in rows}
+
+    # --------------------------------------------------------------- stats
+    async def download_stats_since(self, since: datetime) -> tuple[int, int]:
+        row = await self.db.fetchone(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(file_size), 0) AS total FROM downloads "
+            "WHERE downloaded_at >= ?", (iso(since),))
+        return (row["n"], row["total"]) if row else (0, 0)
+
+    async def per_chat_stats(self, since: datetime | None = None) -> list[dict[str, Any]]:
+        rows = await self.db.fetchall(
+            "SELECT chat_id, MAX(chat_title) AS chat_title, COUNT(*) AS files, "
+            "SUM(file_size) AS bytes, MAX(downloaded_at) AS last_at FROM downloads "
+            "WHERE downloaded_at >= ? GROUP BY chat_id ORDER BY files DESC",
+            (iso(since) if since else "",))
+        return [dict(r) for r in rows]
+
+    # ------------------------------------------------------------ backfill
+    async def create_backfill(self, chat_id: int, date_from: datetime, date_to: datetime) -> int:
+        return await self.db.execute(
+            "INSERT INTO backfill_tasks(chat_id, date_from, date_to, status, created_at) "
+            "VALUES (?, ?, ?, 'running', ?)", (chat_id, iso(date_from), iso(date_to), iso()))
+
+    async def update_backfill(self, task_id: int, *, scanned: int, enqueued: int,
+                              status: str | None = None, error: str | None = None) -> None:
+        finished = iso() if status and status != "running" else None
+        await self.db.execute(
+            "UPDATE backfill_tasks SET scanned = ?, enqueued = ?, status = COALESCE(?, status), "
+            "error = COALESCE(?, error), finished_at = COALESCE(?, finished_at) WHERE id = ?",
+            (scanned, enqueued, status, error, finished, task_id))
+
+    async def list_backfills(self, limit: int = 50) -> list[dict[str, Any]]:
+        rows = await self.db.fetchall(
+            "SELECT b.*, m.chat_title FROM backfill_tasks b LEFT JOIN monitors m USING (chat_id) "
+            "ORDER BY b.id DESC LIMIT ?", (limit,))
+        return [dict(r) for r in rows]
+
+    async def fail_stale_backfills(self) -> None:
+        await self.db.execute(
+            "UPDATE backfill_tasks SET status = 'cancelled', finished_at = ? WHERE status = 'running'",
+            (iso(),))
 
     async def record_download(self, job: dict[str, Any], *, category: str, file_name: str,
                               file_size: int, saved_path: str) -> None:
@@ -202,7 +284,8 @@ class Repository:
                      job["message_date"], iso()),
                 )
                 await conn.execute(
-                    "UPDATE jobs SET status = 'done', last_error = NULL, updated_at = ? WHERE id = ?",
+                    "UPDATE jobs SET status = 'done', last_error = NULL, part_path = NULL, "
+                    "updated_at = ? WHERE id = ?",
                     (iso(), job["id"]),
                 )
         except sqlite3.IntegrityError as exc:

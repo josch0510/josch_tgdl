@@ -101,6 +101,7 @@ async def cmd_fetch(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> i
                 if reason != "no_media":
                     skipped += 1
                 continue
+            await repo.set_job_status(job_id, "running", count_attempt=True)
             job = await repo.get_job(job_id)
             assert job is not None
 
@@ -130,12 +131,60 @@ async def cmd_fetch(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> i
         await db.close()
 
 
-async def cmd_serve(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> int:
+async def cmd_monitor(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> int:
+    """Manage monitors from the terminal (the web UI is the main way).
+    A running `tgdl serve` picks up changes within 30 seconds."""
+    db, repo, _ = await open_storage(cfg)
     try:
-        from .app import run_server
-    except ImportError:
-        print(t("cli.serve.unavailable"))
-        return 1
+        if args.action == "list":
+            rows = await repo.list_monitors()
+            if not rows:
+                print(t("cli.monitor.empty"))
+            for m in rows:
+                state = t("cli.monitor.on") if m["enabled"] else t("cli.monitor.off")
+                print(f"{m['chat_id']:>16}  [{state}]  {m['chat_title']}")
+            return 0
+        if not args.chat:
+            print(t("cli.monitor.need_chat"))
+            return 1
+        if args.action == "add":
+            from .telegram.client import build_client, resolve_chat
+
+            client = build_client(cfg)
+            try:
+                await client.connect()
+                if not await client.is_user_authorized():
+                    print(t("cli.not_logged_in"))
+                    return 1
+                chat = await resolve_chat(client, args.chat)
+            finally:
+                await client.disconnect()
+            await repo.add_monitor(chat.chat_id, chat.title, chat.chat_type)
+            audit("monitor_add", f"chat={chat.chat_id}", ip="cli")
+            print(t("cli.monitor.added", chat=chat.title, chat_id=chat.chat_id))
+            return 0
+        try:
+            chat_id = int(args.chat)
+        except ValueError:
+            print(t("cli.monitor.need_id"))
+            return 1
+        if await repo.get_monitor(chat_id) is None:
+            print(t("cli.monitor.not_found", chat_id=chat_id))
+            return 1
+        if args.action == "remove":
+            await repo.delete_monitor(chat_id)
+        else:
+            await repo.update_monitor(chat_id, enabled=args.action == "enable")
+        audit(f"monitor_{args.action}", f"chat={chat_id}", ip="cli")
+        print(t("cli.monitor.done"))
+        return 0
+    finally:
+        await db.close()
+
+
+async def cmd_serve(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> int:
+    from .app import run_server
+
     return await run_server(cfg, t, args)
 
 
@@ -144,6 +193,7 @@ COMMANDS: dict[str, Callable[[AppConfig, Translate, argparse.Namespace], Any]] =
     "set-password": cmd_set_password,
     "serve": cmd_serve,
     "fetch": cmd_fetch,
+    "monitor": cmd_monitor,
 }
 
 
@@ -158,6 +208,9 @@ def build_parser(t: Translate) -> argparse.ArgumentParser:
     f = sub.add_parser("fetch", help=t("cli.cmd.fetch"))
     f.add_argument("chat", help=t("cli.opt.chat"))
     f.add_argument("--limit", type=int, default=20, help=t("cli.opt.limit"))
+    mon = sub.add_parser("monitor", help=t("cli.cmd.monitor"))
+    mon.add_argument("action", choices=["list", "add", "remove", "enable", "disable"])
+    mon.add_argument("chat", nargs="?", help=t("cli.opt.chat"))
     return p
 
 

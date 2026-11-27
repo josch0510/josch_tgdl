@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +24,9 @@ class SizeMismatch(Exception):
 
 async def download_to_file(client: Any, message: Any, target: Path, *,
                            expected_size: int | None,
-                           progress: ProgressCallback | None = None) -> tuple[Path, int]:
+                           progress: ProgressCallback | None = None,
+                           on_part: Callable[[Path], Awaitable[None]] | None = None,
+                           ) -> tuple[Path, int]:
     """Download ``message``'s media to ``target`` (or ``target_N`` if taken).
 
     The data goes to ``<final>.part`` first; it is renamed only after the
@@ -36,6 +38,8 @@ async def download_to_file(client: Any, message: Any, target: Path, *,
     part = final.with_name(final.name + ".part")
     ACTIVE_PARTS.add(part)
     try:
+        if on_part is not None:
+            await on_part(part)
         with open(part, "xb") as fh:  # "x": never overwrite an existing file
             await client.download_media(message, file=fh, progress_callback=progress)
             fh.flush()

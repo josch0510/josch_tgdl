@@ -57,6 +57,9 @@ CREATE TABLE IF NOT EXISTS jobs (
   source          TEXT NOT NULL,       -- live / backfill / retry / redownload / manual
   status          TEXT NOT NULL,       -- pending / running / done / failed / skipped / cancelled
   attempts        INTEGER NOT NULL DEFAULT 0,
+  priority        INTEGER NOT NULL DEFAULT 0, -- lower first: live=0, backfill=10
+  not_before      TEXT,                -- retry backoff: not claimable before this
+  part_path       TEXT,                -- .part file being written (crash cleanup)
   last_error      TEXT,
   created_at      TEXT NOT NULL,
   updated_at      TEXT NOT NULL
@@ -65,7 +68,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_jobs_active_msg
   ON jobs(chat_id, message_id) WHERE status IN ('pending', 'running');
 CREATE UNIQUE INDEX IF NOT EXISTS ux_jobs_active_media
   ON jobs(media_unique_id) WHERE status IN ('pending', 'running');
-CREATE INDEX IF NOT EXISTS ix_jobs_status ON jobs(status, id);
+CREATE INDEX IF NOT EXISTS ix_jobs_claim ON jobs(status, priority, id);
 CREATE INDEX IF NOT EXISTS ix_jobs_chat ON jobs(chat_id);
 
 CREATE TABLE IF NOT EXISTS downloads (

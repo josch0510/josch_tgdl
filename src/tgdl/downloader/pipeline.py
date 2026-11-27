@@ -46,7 +46,7 @@ class Pipeline:
             chat_id=chat_id, chat_title=chat_title, message_id=message.id,
             grouped_id=getattr(message, "grouped_id", None), media_unique_id=info.unique_id,
             media_kind=info.kind, file_name=info.file_name, file_size=info.file_size,
-            message_date=date, source=source,
+            message_date=date, source=source, priority=10 if source == "backfill" else 0,
         ))
         level = logging.INFO if job_id else logging.DEBUG
         log_event(log, level, "enqueue" if job_id else "skip", f"file={info.file_name}",
@@ -73,8 +73,10 @@ class Pipeline:
 
     async def execute(self, client: Any, job: dict[str, Any], message: Any, *,
                       progress: ProgressCallback | None = None) -> Path | None:
-        """Download one job. ``message`` must be freshly fetched (valid
-        file_reference). Returns the saved path, or None if skipped."""
+        """Download one job that the caller already marked ``running``.
+
+        ``message`` must be freshly fetched (valid file_reference). Returns the
+        saved path, or None if skipped."""
         info = extract_media(message) if message is not None else None
         if info is None:
             raise MediaGone()
@@ -87,13 +89,15 @@ class Pipeline:
 
         rules = self.settings.rules_for(await self.repo.get_monitor(job["chat_id"]))
         category, target = self.target_for(job, info, rules)
-        await self.repo.set_job_status(job["id"], "running", count_attempt=True)
         log_event(log, logging.INFO, "download_start", f"file={info.file_name} size={info.file_size}",
                   chat=job["chat_id"], msg_id=job["message_id"])
 
         expected = info.file_size if info.kind != "photo" else None
+        async def remember_part(part: Path) -> None:
+            await self.repo.set_part_path(job["id"], str(part))
+
         final, size = await download_to_file(client, message, target, expected_size=expected,
-                                             progress=progress)
+                                             progress=progress, on_part=remember_part)
         try:
             await self.repo.record_download(job, category=category, file_name=final.name,
                                             file_size=size, saved_path=str(final))

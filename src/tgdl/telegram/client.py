@@ -42,16 +42,23 @@ class ChatInfo:
         return cls(chat_id=utils.get_peer_id(entity), title=title, chat_type=ctype)
 
 
-def build_client(cfg: AppConfig, *, flood_sleep_threshold: int = 60) -> TelegramClient:
-    """``flood_sleep_threshold=0`` makes every FloodWait raise so the worker
-    pool can pause and show it in the UI."""
+def build_client(cfg: AppConfig, *, long_running: bool = False) -> TelegramClient:
+    """Create the client.
+
+    ``long_running`` (serve): every FloodWait raises so the app can pause the
+    affected work and show it in the UI; reconnect forever; fetch updates
+    missed while offline (catch_up).
+    """
     api_id, api_hash = cfg.require_api()
     RedactFilter.register(api_hash)
     cfg.prepare_dirs()
     client = TelegramClient(
         str(cfg.session_path), api_id, api_hash,
         device_model="tgdl", app_version=__version__, system_version="Linux",
-        flood_sleep_threshold=flood_sleep_threshold,
+        flood_sleep_threshold=0 if long_running else 60,
+        connection_retries=-1 if long_running else 5,
+        retry_delay=5 if long_running else 1,
+        catch_up=long_running,
     )
     ensure_private_file(cfg.session_path.with_suffix(".session"))
     return client

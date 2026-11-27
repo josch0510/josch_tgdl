@@ -85,7 +85,34 @@ async def test_record_download_is_unique(repo: Repository) -> None:
 
 async def test_reset_running_jobs(repo: Repository) -> None:
     jid, _ = await repo.enqueue(job())
-    await repo.set_job_status(jid, "running", count_attempt=True)
-    assert await repo.reset_running_jobs() == 1
+    claimed = await repo.claim_job()
+    assert claimed["id"] == jid and claimed["attempts"] == 1
+    await repo.set_part_path(jid, "/x/a.bin.part")
+    assert await repo.reset_running_jobs() == ["/x/a.bin.part"]
     j = await repo.get_job(jid)
-    assert j["status"] == "pending" and j["attempts"] == 1
+    # the interrupted attempt does not count
+    assert j["status"] == "pending" and j["attempts"] == 0 and j["part_path"] is None
+
+
+async def test_reads_consistent_under_concurrent_writes(repo: Repository) -> None:
+    """Regression: on the shared connection, a split execute/fetch could see
+    rows mutated mid-read (NULL status in GROUP BY results)."""
+    import asyncio
+
+    for i in range(200):
+        await repo.enqueue(job(msg_id=i, media=f"doc:{i}"))
+
+    async def writer() -> None:
+        while (j := await repo.claim_job()) is not None:
+            await repo.set_job_status(j["id"], "done")
+
+    async def reader() -> list[dict]:
+        out = []
+        for _ in range(100):
+            out.append(await repo.job_counts())
+            await asyncio.sleep(0)
+        return out
+
+    results = await asyncio.gather(writer(), writer(), reader(), reader())
+    for counts in results[2] + results[3]:
+        assert None not in counts and sum(counts.values()) == 200

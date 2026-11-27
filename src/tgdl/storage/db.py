@@ -92,10 +92,19 @@ class Database:
             async with self.conn.execute(sql, params) as cur:
                 return cur.lastrowid or 0
 
+    async def execute_returning(self, sql: str, params: tuple | dict = ()) -> aiosqlite.Row | None:
+        """Run a write statement with RETURNING; returns the first row."""
+        async with self._write_lock:
+            rows = await self.conn.execute_fetchall(sql, params)
+        return next(iter(rows), None)
+
+    # Reads run execute+fetch as ONE call on aiosqlite's thread. Splitting them
+    # would let another coroutine modify the table between the two steps on
+    # this shared connection, which SQLite does not define (seen as NULL
+    # values in GROUP BY results).
     async def fetchone(self, sql: str, params: tuple | dict = ()) -> aiosqlite.Row | None:
-        async with self.conn.execute(sql, params) as cur:
-            return await cur.fetchone()
+        rows = await self.conn.execute_fetchall(sql, params)
+        return next(iter(rows), None)
 
     async def fetchall(self, sql: str, params: tuple | dict = ()) -> list[aiosqlite.Row]:
-        async with self.conn.execute(sql, params) as cur:
-            return list(await cur.fetchall())
+        return list(await self.conn.execute_fetchall(sql, params))

@@ -41,3 +41,26 @@ async def settings(cfg: AppConfig, repo: Repository) -> SettingsService:
     s = SettingsService(cfg, repo)
     await s.load()
     return s
+
+
+@pytest.fixture
+def fast(monkeypatch):
+    """Shrink timers so worker/backfill tests run quickly."""
+    from tgdl.downloader import flood, queue, worker
+    from tgdl.telegram import monitor
+    monkeypatch.setattr(queue, "POLL_INTERVAL", 0.05)
+    monkeypatch.setattr(worker, "BACKOFF_BASE", 0.05)
+    monkeypatch.setattr(flood, "SAFETY_MARGIN", 0.0)
+    monkeypatch.setattr(monitor, "ALBUM_SWEEP_DELAY", 0.01)
+
+
+@pytest.fixture
+async def app(cfg, db, repo, settings, fast):
+    from fakes import FakeTelegram
+    from tgdl.app import App
+    a = App.build(cfg, FakeTelegram(), db, repo, settings)
+    yield a
+    a.queue.accepting = False
+    await a.monitors.detach()
+    await a.backfill.stop_all()
+    await a.pool.stop()
