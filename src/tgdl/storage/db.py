@@ -12,8 +12,13 @@ import aiosqlite
 
 from ..config import ensure_private_file
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 SCHEMA_FILE = Path(__file__).with_name("schema.sql")
+
+# Upgrades for existing databases: (version reached, statements).
+MIGRATIONS: list[tuple[int, list[str]]] = [
+    (2, ["ALTER TABLE admin ADD COLUMN username TEXT"]),  # web login needs a username
+]
 
 
 def utcnow() -> datetime:
@@ -63,8 +68,15 @@ class Database:
         async with self.conn.execute("PRAGMA user_version") as cur:
             row = await cur.fetchone()
         version = row[0] if row else 0
-        if version < SCHEMA_VERSION:
+        if version == 0:
+            # fresh database: schema.sql is always the latest version
             await self.conn.executescript(SCHEMA_FILE.read_text(encoding="utf-8"))
+        else:
+            for target, statements in MIGRATIONS:
+                if version < target:
+                    for sql in statements:
+                        await self.conn.execute(sql)
+        if version < SCHEMA_VERSION:
             await self.conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
 
     async def close(self) -> None:

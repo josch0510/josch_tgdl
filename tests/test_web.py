@@ -7,6 +7,7 @@ from tgdl.passwords import hash_password
 from tgdl.web import security
 
 PASSWORD = "correct horse battery"
+USERNAME = "josch"
 
 
 def hidden(html: str, name: str) -> str:
@@ -26,12 +27,13 @@ def no_login_delay(monkeypatch):
 
 @pytest.fixture
 async def with_password(repo):
-    await repo.set_password_hash(hash_password(PASSWORD))
+    await repo.set_admin(USERNAME, hash_password(PASSWORD))
 
 
-async def login(web, password=PASSWORD, **extra):
+async def login(web, password=PASSWORD, username=USERNAME, **extra):
     r = await web.get("/login")
-    data = {"password": password, "login_csrf": hidden(r.text, "login_csrf"), "next": "/"}
+    data = {"username": username, "password": password, "login_csrf": hidden(r.text, "login_csrf"),
+            "next": "/"}
     data.update(extra)
     return await web.post("/login", data=data)
 
@@ -53,9 +55,47 @@ async def test_requires_login(web) -> None:
     assert r.status_code == 401 and r.headers["HX-Redirect"] == "/login"
 
 
-async def test_login_page_without_password(web) -> None:
+async def test_login_page_without_account(web) -> None:
     r = await web.get("/login")
     assert "set-password" in r.text
+
+
+async def test_account_without_username_cannot_log_in(web, repo) -> None:
+    """A v1 database upgraded to v2 has a password but no username yet."""
+    await repo.set_admin(USERNAME, hash_password(PASSWORD))
+    await repo.db.execute("UPDATE admin SET username = NULL")
+    assert "set-password" in (await web.get("/login")).text
+    for name in ("", "admin", "None"):
+        assert (await login(web, username=name)).status_code == 401
+
+
+async def test_username_required_and_checked(web, with_password) -> None:
+    assert (await login(web, username="someone_else")).status_code == 401
+    assert (await login(web, username="")).status_code == 401
+    r = await login(web, username="  JOSCH ")      # case-insensitive, trimmed
+    assert r.status_code == 303
+
+
+async def test_failed_login_keeps_username_and_audits_it(web, app, with_password) -> None:
+    from tgdl.logging_setup import setup_logging
+    setup_logging(app.cfg.logs_dir, console=False)
+    r = await login(web, username="josch", password="wrong")
+    assert 'name="username" value="josch"' in r.text
+    await login(web, username="<b>x</b>\x07", password="wrong")
+    for h in __import__("logging").getLogger("tgdl_audit").handlers:
+        h.flush()
+    audit_text = (app.cfg.logs_dir / "audit.log").read_text(encoding="utf-8")
+    assert "user='josch' | ip=127.0.0.1 | action=login_failed" in audit_text
+    assert "\x07" not in audit_text and PASSWORD not in audit_text and "wrong" not in audit_text
+    # actions after login are attributed to the real account
+    await login(web)
+    token = csrf_of((await web.get("/")).text)
+    await web.post("/logout", data={"csrf_token": token})
+    for h in __import__("logging").getLogger("tgdl_audit").handlers:
+        h.flush()
+    audit_text = (app.cfg.logs_dir / "audit.log").read_text(encoding="utf-8")
+    assert "user=josch | ip=127.0.0.1 | action=login_success" in audit_text
+    assert "user=josch | ip=127.0.0.1 | action=logout" in audit_text
 
 
 async def test_login_success_sets_secure_cookie(web, with_password) -> None:
@@ -74,7 +114,7 @@ async def test_wrong_password(web, with_password) -> None:
 
 async def test_login_csrf_required(web, with_password) -> None:
     await web.get("/login")
-    r = await web.post("/login", data={"password": PASSWORD, "login_csrf": "forged"})
+    r = await web.post("/login", data={"username": USERNAME, "password": PASSWORD, "login_csrf": "forged"})
     assert r.status_code == 400
 
 
@@ -103,7 +143,7 @@ async def test_logout_invalidates_session(web, with_password) -> None:
 
 async def test_password_change_revokes_sessions(web, repo, with_password) -> None:
     await logged_in(web)
-    await repo.set_password_hash(hash_password("another long password"))
+    await repo.set_admin(USERNAME, hash_password("another long password"))
     assert (await web.get("/")).status_code == 303
 
 

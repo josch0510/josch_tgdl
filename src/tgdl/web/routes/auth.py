@@ -18,7 +18,7 @@ from ..common import (
 )
 from ..security import (
     FAILED_LOGIN_DELAY, LANG_COOKIE, SESSION_ABSOLUTE, SESSION_COOKIE, LoginLimiter, Session,
-    SessionManager, check_password,
+    SessionManager, check_credentials,
 )
 
 router = APIRouter()
@@ -27,10 +27,10 @@ LOGIN_CSRF_COOKIE = "tgdl_login_csrf"
 
 
 def _login_page(request: Request, *, error: str | None = None, status_code: int = 200,
-                **params: object) -> Response:
+                username: str = "", **params: object) -> Response:
     token = secrets.token_urlsafe(32)
     resp = render(request, "login.html", status_code=status_code, login_csrf=token,
-                  error=error, error_params=params,
+                  error=error, error_params=params, username=username,
                   next=safe_next(request.query_params.get("next")))
     resp.set_cookie(LOGIN_CSRF_COOKIE, token, max_age=3600, httponly=True, samesite="strict",
                     secure=core(request).cfg.cookie_secure, path="/login")
@@ -42,14 +42,15 @@ async def login_form(request: Request) -> Response:
     sessions: SessionManager = request.app.state.sessions
     if await sessions.validate(request.cookies.get(SESSION_COOKIE)):
         return RedirectResponse("/", status_code=303)
-    if await core(request).repo.get_password_hash() is None:
-        return _login_page(request, error="login.no_password")
+    admin = await core(request).repo.get_admin()
+    if admin is None or not admin["username"]:
+        return _login_page(request, error="login.no_account")
     return _login_page(request)
 
 
 @router.post("/login")
-async def login_submit(request: Request, password: str = Form(""), login_csrf: str = Form(""),
-                       next: str = Form("/")) -> Response:
+async def login_submit(request: Request, username: str = Form(""), password: str = Form(""),
+                       login_csrf: str = Form(""), next: str = Form("/")) -> Response:
     app = core(request)
     limiter: LoginLimiter = request.app.state.limiter
     sessions: SessionManager = request.app.state.sessions
@@ -57,24 +58,31 @@ async def login_submit(request: Request, password: str = Form(""), login_csrf: s
 
     cookie_token = request.cookies.get(LOGIN_CSRF_COOKIE, "")
     if not cookie_token or not hmac.compare_digest(cookie_token, login_csrf):
-        audit_web(request, "login_csrf_rejected", level=logging.WARNING)
+        audit_web(request, "login_csrf_rejected", level=logging.WARNING, user="-")
         return _login_page(request, error="login.expired", status_code=400)
 
     locked = await limiter.locked_until(ip)
     if locked is not None:
         minutes = max(1, math.ceil((locked - datetime.now(timezone.utc)).total_seconds() / 60))
-        audit_web(request, "login_blocked", f"locked for {minutes} more minute(s)", logging.WARNING)
+        audit_web(request, "login_blocked", f"locked for {minutes} more minute(s)", logging.WARNING,
+                  user="".join(c for c in username.strip()[:64] if c.isprintable()) or "-")
         return _login_page(request, error="login.locked", status_code=429, minutes=minutes)
 
-    if len(password) > 1024 or not await check_password(app.repo, password):
+    # attempted username for the audit log (attacker-controlled: sanitized, truncated)
+    tried = "".join(c for c in username.strip()[:64] if c.isprintable())
+    if (len(password) > 1024 or len(username) > 256
+            or not await check_credentials(app.repo, username, password)):
         lockout = await limiter.record_failure(ip)
-        audit_web(request, "login_failed", "lockout triggered" if lockout else "", logging.WARNING)
+        audit_web(request, "login_failed", "lockout triggered" if lockout else "", logging.WARNING,
+                  user=repr(tried))
         await asyncio.sleep(FAILED_LOGIN_DELAY)
-        return _login_page(request, error="login.invalid", status_code=401)
+        return _login_page(request, error="login.invalid", status_code=401, username=tried)
 
     await limiter.record_success(ip)
     token, _ = await sessions.create(ip)
-    audit_web(request, "login_success")
+    admin = await app.repo.get_admin()
+    request.app.state.admin_username = (admin or {}).get("username") or "-"
+    audit_web(request, "login_success", user=request.app.state.admin_username)
     resp = RedirectResponse(safe_next(next), status_code=303)
     resp.set_cookie(SESSION_COOKIE, token, max_age=int(SESSION_ABSOLUTE.total_seconds()),
                     httponly=True, samesite="strict", secure=app.cfg.cookie_secure, path="/")

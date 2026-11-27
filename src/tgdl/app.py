@@ -212,7 +212,8 @@ async def run_server(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> 
         if cfg.web_host in ("0.0.0.0", "::"):
             print(t("cli.serve.all_interfaces", port=cfg.web_port,
                     hosts=", ".join(h for h in cfg.allowed_hosts if h not in ("::1", "[::1]"))))
-        if await repo.get_password_hash() is None:
+        admin = await repo.get_admin()
+        if admin is None or not admin["username"]:
             print(t("cli.serve.no_password"))
 
         stop = asyncio.Event()

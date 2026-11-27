@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
-from ..passwords import needs_rehash, verify_password, hash_password
+from ..passwords import hash_password, needs_rehash, usernames_match, verify_password
 from ..storage.db import parse_iso
 from ..storage.repo import Repository
 
@@ -140,11 +140,15 @@ class LoginLimiter:
         await self.repo.clear_login_failure(f"ip:{ip}")
 
 
-async def check_password(repo: Repository, password: str) -> bool:
-    """Verify the admin password off the event loop (argon2 is CPU-bound)."""
-    stored = await repo.get_password_hash()
-    ok = await asyncio.to_thread(verify_password, stored, password)
-    if ok and stored and needs_rehash(stored):
-        await repo.set_password_hash(await asyncio.to_thread(hash_password, password),
-                                     revoke_sessions=False)
-    return ok
+async def check_credentials(repo: Repository, username: str, password: str) -> bool:
+    """Verify username + password off the event loop (argon2 is CPU-bound).
+
+    The password hash is always verified, even for a wrong username, so the
+    response time does not reveal whether the username exists."""
+    admin = await repo.get_admin()
+    stored_hash = admin["password_hash"] if admin else None
+    user_ok = usernames_match(admin["username"] if admin else None, username)
+    pw_ok = await asyncio.to_thread(verify_password, stored_hash, password)
+    if user_ok and pw_ok and stored_hash and needs_rehash(stored_hash):
+        await repo.update_password_hash(await asyncio.to_thread(hash_password, password))
+    return user_ok and pw_ok

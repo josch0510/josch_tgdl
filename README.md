@@ -47,7 +47,7 @@ $EDITOR .env
 
 ```bash
 .venv/bin/tgdl login          # phone, login code, 2FA password (if set)
-.venv/bin/tgdl set-password   # web admin password, min. 12 characters
+.venv/bin/tgdl set-password   # web admin username + password (min. 12 characters)
 .venv/bin/tgdl serve          # foreground; Ctrl+C to stop
 ```
 
@@ -140,7 +140,9 @@ stored only after the rename.
 - Binds to 127.0.0.1; host-name allowlist against DNS rebinding (IP addresses
   localhost and this machine's own host name always accepted; other names via
   `ALLOWED_HOSTS`)
-- One admin account, argon2id password hash, verified off the event loop
+- One admin account (username + password), argon2id password hash verified off
+  the event loop; a wrong username takes as long as a wrong password and both
+  give the same error, so usernames cannot be probed
 - Server-side sessions; cookie `HttpOnly; SameSite=Strict`; 2 h idle / 12 h
   absolute expiry; all sessions revoked when the password changes
 - CSRF token + same-origin check on every state-changing request; the login
@@ -158,7 +160,7 @@ stored only after the rename.
 ```
 tgdl [--lang en|zh-TW] [--home DIR] COMMAND
   login                                    interactive Telegram login
-  set-password                             set the web admin password
+  set-password [--username NAME]           set the web admin username and password
   serve                                    web UI + monitors + workers (foreground)
   monitor list|add|remove|enable|disable [CHAT]
   fetch CHAT [--limit N]                   one-shot download of the latest N messages
@@ -176,7 +178,7 @@ tgdl [--lang en|zh-TW] [--home DIR] COMMAND
 | `data/tgdl.session` | Telegram login session — treat like a password | 600 |
 | `data/tgdl.db` | settings, monitors, queue, history, web sessions | 600 |
 | `logs/tgdl.log` | application log, always English, 10 MB × 5 | 600 |
-| `logs/audit.log` | logins, settings and monitor changes, retries | 600 |
+| `logs/audit.log` | logins (with the username), settings and monitor changes, retries; `user=` is the web account, or `os:<name>` for CLI actions | 600 |
 
 Log format: `timestamp | level | chat=… | msg_id=… | action=… | reason=… | details`.
 
@@ -185,7 +187,8 @@ Log format: `timestamp | level | chat=… | msg_id=… | action=… | reason=…
 | Problem | Fix |
 |---|---|
 | `Not logged in to Telegram` | Run `tgdl login` again (e.g. after the session was terminated in Telegram) |
-| Web UI says no password is set | `tgdl set-password` |
+| Login page says the admin account is not set up | `tgdl set-password` (asks for a username and password). After upgrading from a version without usernames, run it once |
+| Forgot the username or password | `tgdl set-password` sets both again |
 | Locked out after wrong passwords | Wait 15 minutes, or stop tgdl and run `sqlite3 data/tgdl.db "DELETE FROM login_failures"` |
 | Browser shows `Host not allowed` | You opened the UI by a host *name* other than this machine's own name. Use `http://localhost:8080` via the SSH tunnel or the server's IP, or add the name to `ALLOWED_HOSTS` in `.env` and restart |
 | `Cannot start the web UI … Address already in use` | Another program uses the port: change `WEB_PORT` |
@@ -246,7 +249,7 @@ $EDITOR .env
 
 ```bash
 .venv/bin/tgdl --lang zh-TW login          # 電話、登入驗證碼、兩步驟驗證密碼
-.venv/bin/tgdl --lang zh-TW set-password   # 網頁管理員密碼（至少 12 字元）
+.venv/bin/tgdl --lang zh-TW set-password   # 網頁管理員帳號與密碼（密碼至少 12 字元）
 .venv/bin/tgdl --lang zh-TW serve          # 前景執行，Ctrl+C 停止
 ```
 
@@ -307,7 +310,8 @@ ssh -N -L 8080:127.0.0.1:8080 您的帳號@debian主機
 | 狀況 | 解決方式 |
 |---|---|
 | 顯示「尚未登入 Telegram」 | 重新執行 `tgdl login` |
-| 網頁顯示尚未設定密碼 | 執行 `tgdl set-password` |
+| 登入頁顯示尚未設定管理員帳號 | 執行 `tgdl set-password`（會詢問帳號與密碼）；從沒有帳號欄位的舊版升級後，需執行一次 |
+| 忘記帳號或密碼 | 再執行一次 `tgdl set-password` 重新設定 |
 | 密碼輸錯太多次被鎖定 | 等 15 分鐘；或停止 tgdl 後執行 `sqlite3 data/tgdl.db "DELETE FROM login_failures"` |
 | 瀏覽器顯示 `Host not allowed` | 您用的主機名稱不是本機的主機名稱。請透過 SSH tunnel 使用 `http://localhost:8080`、改用伺服器 IP，或把該名稱加入 `.env` 的 `ALLOWED_HOSTS` 後重新啟動 |
 | 「無法啟動網頁介面…Address already in use」 | 埠號被其他程式占用，請修改 `WEB_PORT` |

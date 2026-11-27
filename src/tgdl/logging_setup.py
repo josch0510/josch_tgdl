@@ -159,6 +159,6 @@ def log_event(logger: logging.Logger, level: int, action: str, message: str = ""
     })
 
 
-def audit(action: str, message: str = "", *, user: str = "admin", ip: str = "-",
+def audit(action: str, message: str = "", *, user: str = "-", ip: str = "-",
           level: int = logging.INFO) -> None:
     logging.getLogger("tgdl_audit").log(level, message, extra={"user": user, "ip": ip, "action": action})

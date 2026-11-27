@@ -171,7 +171,7 @@ async def test_crash_recovery_keeps_or_deletes(app, base_dir) -> None:
 async def test_settings_page_toggle(web, app, base_dir) -> None:
     from test_web import logged_in
     from tgdl.passwords import hash_password
-    await app.repo.set_password_hash(hash_password("correct horse battery"))
+    await app.repo.set_admin("josch", hash_password("correct horse battery"))
     token = await logged_in(web)
     html = (await web.get("/settings")).text
     assert 'name="resume_downloads" value="1" checked' in html

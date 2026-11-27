@@ -145,8 +145,21 @@ def redirect(url: str, **flash: str) -> RedirectResponse:
     return RedirectResponse(url, status_code=303)
 
 
-def audit_web(request: Request, action: str, message: str = "", level: int = logging.INFO) -> None:
-    audit(action, message, ip=client_ip(request), level=level)
+def audit_web(request: Request, action: str, message: str = "", level: int = logging.INFO,
+              *, user: str | None = None) -> None:
+    """Audit entry; ``user`` defaults to the logged-in admin's username."""
+    who = user if user is not None else getattr(request.state, "username", None)
+    audit(action, message, user=who or "-", ip=client_ip(request), level=level)
+
+
+async def admin_username(request: Request) -> str:
+    """Cached admin username (refreshed at every login)."""
+    cached = getattr(request.app.state, "admin_username", None)
+    if cached is None:
+        admin = await core(request).repo.get_admin()
+        cached = (admin or {}).get("username") or "-"
+        request.app.state.admin_username = cached
+    return cached
 
 
 # ------------------------------------------------------------------ auth
@@ -160,6 +173,7 @@ async def require_session(request: Request) -> Session:
     if session is None:
         raise LoginRequired()
     request.state.session = session
+    request.state.username = await admin_username(request)
     return session
 
 

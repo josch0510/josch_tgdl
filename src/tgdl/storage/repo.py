@@ -87,21 +87,29 @@ class Repository:
                 )
 
     # --------------------------------------------------------------- admin
-    async def get_password_hash(self) -> str | None:
-        row = await self.db.fetchone("SELECT password_hash FROM admin WHERE id = 1")
-        return row["password_hash"] if row else None
+    async def get_admin(self) -> dict[str, Any] | None:
+        row = await self.db.fetchone("SELECT username, password_hash FROM admin WHERE id = 1")
+        return dict(row) if row else None
 
-    async def set_password_hash(self, password_hash: str, *, revoke_sessions: bool = True) -> None:
+    async def get_password_hash(self) -> str | None:
+        admin = await self.get_admin()
+        return admin["password_hash"] if admin else None
+
+    async def set_admin(self, username: str, password_hash: str) -> None:
+        """Set the web admin account; every web session is revoked."""
         async with self.db.transaction() as conn:
             await conn.execute(
-                "INSERT INTO admin(id, password_hash, updated_at) VALUES (1, ?, ?) "
-                "ON CONFLICT(id) DO UPDATE SET password_hash=excluded.password_hash, "
-                "updated_at=excluded.updated_at",
-                (password_hash, iso()),
+                "INSERT INTO admin(id, username, password_hash, updated_at) VALUES (1, ?, ?, ?) "
+                "ON CONFLICT(id) DO UPDATE SET username=excluded.username, "
+                "password_hash=excluded.password_hash, updated_at=excluded.updated_at",
+                (username, password_hash, iso()),
             )
-            # Changing the password invalidates every web session.
-            if revoke_sessions:
-                await conn.execute("DELETE FROM web_sessions")
+            await conn.execute("DELETE FROM web_sessions")
+
+    async def update_password_hash(self, password_hash: str) -> None:
+        """Re-hash with new argon2 parameters (same password, sessions kept)."""
+        await self.db.execute("UPDATE admin SET password_hash = ?, updated_at = ? WHERE id = 1",
+                              (password_hash, iso()))
 
     # -------------------------------------------------------- web sessions
     async def create_session(self, token_hash: str, csrf_token: str, expires_at: datetime,

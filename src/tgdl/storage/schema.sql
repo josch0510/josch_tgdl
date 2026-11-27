@@ -1,4 +1,4 @@
--- tgdl schema v1. All timestamps are UTC ISO-8601 strings.
+-- tgdl schema v2. All timestamps are UTC ISO-8601 strings.
 
 CREATE TABLE IF NOT EXISTS settings (
   key         TEXT PRIMARY KEY,
@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS settings (
 
 CREATE TABLE IF NOT EXISTS admin (
   id            INTEGER PRIMARY KEY CHECK (id = 1),
+  username      TEXT,                  -- NULL until set with `tgdl set-password`
   password_hash TEXT NOT NULL,         -- argon2id
   updated_at    TEXT NOT NULL
 );

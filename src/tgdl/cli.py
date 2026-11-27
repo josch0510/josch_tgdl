@@ -14,7 +14,7 @@ from typing import Any
 from .config import AppConfig, ConfigError, load_config
 from .i18n import cli_lang, get_translator
 from .logging_setup import audit, log_event, setup_logging
-from .passwords import MIN_PASSWORD_LENGTH, hash_password
+from .passwords import MIN_PASSWORD_LENGTH, hash_password, normalize_username
 from .settings import SettingsService
 from .storage.db import Database
 from .storage.repo import Repository
@@ -22,6 +22,14 @@ from .storage.repo import Repository
 log = logging.getLogger("tgdl.cli")
 
 Translate = Callable[..., str]
+
+
+def os_user() -> str:
+    """The operating-system account running the CLI (for the audit log)."""
+    try:
+        return "os:" + getpass.getuser()
+    except Exception:  # noqa: BLE001 - no passwd entry etc.
+        return "os:?"
 
 
 def _human(n: float) -> str:
@@ -57,22 +65,32 @@ async def cmd_login(cfg: AppConfig, t: Translate, _args: argparse.Namespace) -> 
     return 0
 
 
-async def cmd_set_password(cfg: AppConfig, t: Translate, _args: argparse.Namespace) -> int:
-    pw1 = getpass.getpass(t("cli.password.prompt", min=MIN_PASSWORD_LENGTH))
-    if len(pw1) < MIN_PASSWORD_LENGTH:
-        print(t("cli.password.too_short", min=MIN_PASSWORD_LENGTH))
-        return 1
-    pw2 = getpass.getpass(t("cli.password.confirm"))
-    if pw1 != pw2:
-        print(t("cli.password.mismatch"))
-        return 1
+async def cmd_set_password(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> int:
+    """Set the web admin username and password (revokes all web sessions)."""
     db, repo, _ = await open_storage(cfg)
     try:
-        await repo.set_password_hash(hash_password(pw1))
+        admin = await repo.get_admin()
+        current = (admin or {}).get("username") or "admin"
+        raw = args.username if args.username is not None else (
+            input(t("cli.password.username_prompt", default=current)).strip() or current)
+        username = normalize_username(raw)
+        if username is None:
+            print(t("cli.password.bad_username"))
+            return 1
+        pw1 = getpass.getpass(t("cli.password.prompt", min=MIN_PASSWORD_LENGTH))
+        if len(pw1) < MIN_PASSWORD_LENGTH:
+            print(t("cli.password.too_short", min=MIN_PASSWORD_LENGTH))
+            return 1
+        pw2 = getpass.getpass(t("cli.password.confirm"))
+        if pw1 != pw2:
+            print(t("cli.password.mismatch"))
+            return 1
+        await repo.set_admin(username, hash_password(pw1))
     finally:
         await db.close()
-    audit("set_password", "Admin password set from CLI; all web sessions revoked", ip="cli")
-    print(t("cli.password.done"))
+    audit("set_password", f"Admin account set from CLI (username={username!r}); all web sessions revoked",
+          user=os_user(), ip="cli")
+    print(t("cli.password.done", username=username))
     return 0
 
 
@@ -160,7 +178,7 @@ async def cmd_monitor(cfg: AppConfig, t: Translate, args: argparse.Namespace) ->
             finally:
                 await client.disconnect()
             await repo.add_monitor(chat.chat_id, chat.title, chat.chat_type)
-            audit("monitor_add", f"chat={chat.chat_id}", ip="cli")
+            audit("monitor_add", f"chat={chat.chat_id}", user=os_user(), ip="cli")
             print(t("cli.monitor.added", chat=chat.title, chat_id=chat.chat_id))
             return 0
         try:
@@ -175,7 +193,7 @@ async def cmd_monitor(cfg: AppConfig, t: Translate, args: argparse.Namespace) ->
             await repo.delete_monitor(chat_id)
         else:
             await repo.update_monitor(chat_id, enabled=args.action == "enable")
-        audit(f"monitor_{args.action}", f"chat={chat_id}", ip="cli")
+        audit(f"monitor_{args.action}", f"chat={chat_id}", user=os_user(), ip="cli")
         print(t("cli.monitor.done"))
         return 0
     finally:
@@ -203,7 +221,8 @@ def build_parser(t: Translate) -> argparse.ArgumentParser:
     p.add_argument("--home", help=t("cli.opt.home"))
     sub = p.add_subparsers(dest="command", required=True)
     sub.add_parser("login", help=t("cli.cmd.login"))
-    sub.add_parser("set-password", help=t("cli.cmd.set_password"))
+    sp = sub.add_parser("set-password", help=t("cli.cmd.set_password"))
+    sp.add_argument("--username", help=t("cli.opt.username"))
     sub.add_parser("serve", help=t("cli.cmd.serve"))
     f = sub.add_parser("fetch", help=t("cli.cmd.fetch"))
     f.add_argument("chat", help=t("cli.opt.chat"))

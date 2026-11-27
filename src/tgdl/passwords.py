@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hmac
+import re
+
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 
@@ -27,3 +30,20 @@ def verify_password(password_hash: str | None, password: str) -> bool:
 
 def needs_rehash(password_hash: str) -> bool:
     return _hasher.check_needs_rehash(password_hash)
+
+
+USERNAME_MAX = 64
+_USERNAME_RE = re.compile(r"^[\w.@+-]{1,64}$")
+
+
+def normalize_username(value: str) -> str | None:
+    """Validated username (letters incl. CJK, digits, . _ @ + -), or None."""
+    v = (value or "").strip()
+    return v if _USERNAME_RE.fullmatch(v) else None
+
+
+def usernames_match(stored: str | None, supplied: str) -> bool:
+    """Case-insensitive, constant-time comparison."""
+    a = (stored or "").casefold().encode()
+    b = (supplied or "").strip().casefold().encode()
+    return bool(stored) and hmac.compare_digest(a, b)
