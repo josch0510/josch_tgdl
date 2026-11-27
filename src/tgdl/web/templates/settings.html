@@ -15,6 +15,12 @@
       <input type="number" name="concurrency" value="{{ v.concurrency }}" min="{{ min_c }}" max="{{ max_c }}" required>
       <span class="hint">{{ t("settings.concurrency_hint") }}</span>
     </label>
+    <label>{{ t("settings.field_default_direction") }}
+      <select name="default_direction">
+        {% for d in ("all", "incoming") %}<option value="{{ d }}" {% if v.default_direction == d %}selected{% endif %}>{{ t("direction." ~ d) }}</option>{% endfor %}
+      </select>
+      <span class="hint">{{ t("settings.direction_hint") }} {{ t("monitor.direction_saved") }}</span>
+    </label>
     <label class="check"><input type="checkbox" name="resume_downloads" value="1" {% if v.resume_downloads %}checked{% endif %}> {{ t("settings.field_resume_downloads") }}</label>
     <span class="hint">{{ t("settings.resume_hint") }}</span>
     <fieldset>

@@ -179,7 +179,7 @@ class Repository:
 
     async def update_monitor(self, chat_id: int, **fields: Any) -> None:
         allowed = {"chat_title", "enabled", "media_types", "download_dir", "filename_prefix",
-                   "min_size", "max_size", "keyword"}
+                   "min_size", "max_size", "keyword", "direction"}
         bad = set(fields) - allowed
         if bad:
             raise ValueError(f"Unknown monitor fields: {bad}")

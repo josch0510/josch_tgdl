@@ -76,6 +76,7 @@ def test_every_template_key_is_translated() -> None:
         "kind": MEDIA_KINDS, "cat": CATEGORIES, "chat_type": ("channel", "group", "user", "saved"),
         "flood.scope": ("download", "api"), "lang": SUPPORTED,
         "backfill.status": ("running", "done", "failed", "cancelled"),
+        "direction": ("all", "incoming"),
         "flash.job": ("skipped", "not_failed"),          # err="job_" + retry_job() result
         "flash": ("bad_range", "already_running", "not_monitored"),  # BackfillError codes
     }

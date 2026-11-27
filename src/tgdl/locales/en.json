@@ -285,5 +285,11 @@
   "chat_type.saved": "Saved Messages",
   "chat_type.bot": "Bot",
   "monitors.type_filter": "Chat type",
-  "monitors.type_all": "All types"
+  "monitors.type_all": "All types",
+  "settings.direction": "Download direction",
+  "settings.field_default_direction": "Default download direction",
+  "settings.direction_hint": "\"Received only\" skips media sent by your own account (in private chats, groups and channels you post to).",
+  "direction.all": "All (received and sent)",
+  "direction.incoming": "Received only",
+  "monitor.direction_saved": "Saved Messages always downloads everything: all its messages count as sent by you."
 }

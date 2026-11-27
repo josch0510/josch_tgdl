@@ -18,10 +18,19 @@ class ChatRules:
     min_size: int | None = None
     max_size: int | None = None
     keyword: str | None = None
+    direction: str = "all"  # "all" or "incoming" (only media sent by others)
 
 
-def filter_reason(info: MediaInfo, rules: ChatRules) -> str | None:
-    """Return a skip reason, or None if the media should be downloaded."""
+DIRECTIONS: tuple[str, ...] = ("all", "incoming")
+
+
+def filter_reason(info: MediaInfo, rules: ChatRules, *, outgoing: bool = False) -> str | None:
+    """Return a skip reason, or None if the media should be downloaded.
+
+    ``outgoing``: the message was sent by this account (Telethon ``message.out``).
+    """
+    if rules.direction == "incoming" and outgoing:
+        return "outgoing"
     if info.kind not in rules.media_types:
         return "type_disabled"
     if info.file_size is not None:

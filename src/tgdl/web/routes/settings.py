@@ -31,6 +31,7 @@ def _form_values(settings: dict[str, Any]) -> dict[str, Any]:
         "default_prefix": settings["default_prefix"],
         "language": settings["language"],
         "resume_downloads": settings["resume_downloads"],
+        "default_direction": settings["default_direction"],
         "kinds": dict(cm["kinds"]),
         "extensions": {c: ", ".join(cm["extensions"].get(c, [])) for c in CATEGORIES},
         "mime": "\n".join(f"{k} = {v}" for k, v in cm["mime"].items()),
@@ -77,6 +78,7 @@ async def settings_save(request: Request, _s: Session = Depends(require_csrf)) -
         "default_prefix": str(form.get("default_prefix", "")),
         "language": str(form.get("language", "")),
         "resume_downloads": form.get("resume_downloads") == "1",
+        "default_direction": str(form.get("default_direction", "all")),
         "kinds": {k: str(form.get(f"kind_{k}", "")) for k in KIND_OPTIONS},
         "extensions": {c: str(form.get(f"ext_{c}", "")) for c in CATEGORIES},
         "mime": str(form.get("mime", "")),
@@ -97,6 +99,7 @@ async def settings_save(request: Request, _s: Session = Depends(require_csrf)) -
             "default_prefix": values["default_prefix"],
             "language": values["language"],
             "resume_downloads": values["resume_downloads"],
+            "default_direction": values["default_direction"],
             "category_map": category_map,
         })
     except SettingsError as exc:

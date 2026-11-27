@@ -38,7 +38,7 @@ class Pipeline:
         if info is None:
             return None, "no_media"
         rules = self.settings.rules_for(monitor)
-        reason = filter_reason(info, rules)
+        reason = filter_reason(info, rules, outgoing=bool(getattr(message, "out", False)))
         if reason:
             return None, reason
         date: datetime = getattr(message, "date", None) or datetime.now(timezone.utc)

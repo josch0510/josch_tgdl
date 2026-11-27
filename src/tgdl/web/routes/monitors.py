@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 
 from ...core.categories import MEDIA_KINDS
+from ...core.filters import DIRECTIONS
 from ...core.paths import PathNotAllowed, TemplateError, resolve_allowed, validate_prefix_template
 from ...downloader.flood import FLOOD_ERRORS
 from ...storage.db import parse_iso
@@ -141,6 +142,7 @@ def _values_from_monitor(m: dict[str, Any], defaults: dict[str, Any]) -> dict[st
         "min_mb": "" if m["min_size"] is None else f"{m['min_size'] / MB:g}",
         "max_mb": "" if m["max_size"] is None else f"{m['max_size'] / MB:g}",
         "keyword": m["keyword"] or "",
+        "direction": m.get("direction") or "",   # "" = global default
     }
 
 
@@ -176,6 +178,7 @@ async def monitor_settings_save(request: Request, chat_id: int,
         "min_mb": str(form.get("min_mb", "")),
         "max_mb": str(form.get("max_mb", "")),
         "keyword": str(form.get("keyword", "")).strip()[:MAX_KEYWORD],
+        "direction": str(form.get("direction", "")),
     }
 
     def fail(code: str) -> Response:
@@ -205,9 +208,11 @@ async def monitor_settings_save(request: Request, chat_id: int,
     if media_types is not None and not media_types:
         return fail("monitor.no_types")
 
+    if values["direction"] not in ("", *DIRECTIONS):
+        return fail("settings.invalid")
     changes = {"media_types": media_types, "download_dir": download_dir,
                "filename_prefix": prefix, "min_size": min_size, "max_size": max_size,
-               "keyword": values["keyword"] or None}
+               "keyword": values["keyword"] or None, "direction": values["direction"] or None}
     await app.repo.update_monitor(chat_id, **changes)
     await app.monitors.reload(chat_id)
     diff = {k: v for k, v in changes.items() if m.get(k) != v}

@@ -1,4 +1,4 @@
--- tgdl schema v2. All timestamps are UTC ISO-8601 strings.
+-- tgdl schema v3. All timestamps are UTC ISO-8601 strings.
 
 CREATE TABLE IF NOT EXISTS settings (
   key         TEXT PRIMARY KEY,
@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS monitors (
   min_size        INTEGER,
   max_size        INTEGER,
   keyword         TEXT,
+  direction       TEXT,                -- all / incoming; NULL = global default
   created_at      TEXT NOT NULL,
   updated_at      TEXT NOT NULL
 );

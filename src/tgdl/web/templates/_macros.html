@@ -60,6 +60,8 @@
   <dt>{{ t("settings.prefix") }}</dt>
   <dd>{% if v.prefix %}<code>{{ v.prefix }}</code>{% else %}<span class="muted">{{ t("monitor.none") }}</span>{% endif %}
       {% if v.prefix_custom %}<span class="tag">{{ t("monitor.custom") }}</span>{% endif %}</dd>
+  <dt>{{ t("settings.direction") }}</dt>
+  <dd>{{ t("direction." ~ v.direction) }}{% if v.direction_custom %} <span class="tag">{{ t("monitor.custom") }}</span>{% endif %}</dd>
   <dt>{{ t("monitor.filters_short") }}</dt>
   <dd>{% if not v.has_filters %}<span class="muted">{{ t("monitor.none") }}</span>{% else %}
       {%- set parts = [] -%}

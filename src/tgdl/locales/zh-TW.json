@@ -285,5 +285,11 @@
   "chat_type.saved": "我的收藏",
   "chat_type.bot": "機器人",
   "monitors.type_filter": "對話類型",
-  "monitors.type_all": "全部類型"
+  "monitors.type_all": "全部類型",
+  "settings.direction": "下載方向",
+  "settings.field_default_direction": "預設下載方向",
+  "settings.direction_hint": "「只下載收到的」會略過由您自己帳號傳送的媒體（私人對話、群組，以及您發文的頻道）。",
+  "direction.all": "全部（收到與傳送）",
+  "direction.incoming": "只下載收到的",
+  "monitor.direction_saved": "「我的收藏」一律全部下載，因為其中的訊息都算是您自己傳送的。"
 }

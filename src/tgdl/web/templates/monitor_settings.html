@@ -33,6 +33,20 @@
   </fieldset>
 
   <fieldset>
+    <legend>{{ t("settings.direction") }}</legend>
+    {% if m.chat_type == "saved" %}
+    <p class="hint">{{ t("monitor.direction_saved") }}</p>
+    {% else %}
+    <label class="check"><input type="radio" name="direction" value="" {% if not v.direction %}checked{% endif %}>
+      {{ t("monitor.use_default") }} <span class="muted small">({{ t("direction." ~ defaults.default_direction) }})</span></label>
+    {% for d in ("all", "incoming") %}
+    <label class="check"><input type="radio" name="direction" value="{{ d }}" {% if v.direction == d %}checked{% endif %}> {{ t("direction." ~ d) }}</label>
+    {% endfor %}
+    <span class="hint">{{ t("settings.direction_hint") }}</span>
+    {% endif %}
+  </fieldset>
+
+  <fieldset>
     <legend>{{ t("monitor.filters") }}</legend>
     <div class="grid2">
       <label>{{ t("monitor.min_mb") }}<input type="number" name="min_mb" value="{{ v.min_mb }}" min="0" step="any"></label>

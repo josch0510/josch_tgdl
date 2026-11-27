@@ -12,7 +12,7 @@ from .config import AppConfig
 from .core.categories import (
     DEFAULT_MEDIA_TYPES, MEDIA_KINDS, CategoryMap, default_category_map, validate_category_map,
 )
-from .core.filters import ChatRules
+from .core.filters import DIRECTIONS, ChatRules
 from .core.paths import (
     DEFAULT_PATH_TEMPLATE, resolve_allowed, validate_path_template, validate_prefix_template,
 )
@@ -46,6 +46,7 @@ def defaults(cfg: AppConfig) -> dict[str, Any]:
         "default_prefix": "",
         "language": "zh-TW",
         "resume_downloads": True,
+        "default_direction": "all",
     }
 
 
@@ -87,6 +88,10 @@ def validate_setting(cfg: AppConfig, key: str, value: Any) -> Any:
             if str(value).lower() in ("0", "false", "off", "no", ""):
                 return False
             raise SettingsError(key, "settings.invalid")
+        if key == "default_direction":
+            if value not in DIRECTIONS:
+                raise SettingsError(key, "settings.invalid")
+            return value
         if key == "language":
             if value not in SUPPORTED:
                 raise SettingsError(key, "settings.bad_language")
@@ -170,4 +175,8 @@ class SettingsService:
             min_size=m.get("min_size"),
             max_size=m.get("max_size"),
             keyword=m.get("keyword") or None,
+            # In Saved Messages every message counts as sent by you (even
+            # forwards), so "received only" would download nothing there.
+            direction="all" if m.get("chat_type") == "saved"
+            else (m.get("direction") or self._values["default_direction"]),
         )

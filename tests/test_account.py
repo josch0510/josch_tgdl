@@ -32,6 +32,12 @@ async def test_migrates_v1_database(tmp_path: Path) -> None:
         INSERT INTO admin VALUES (1, 'oldhash', '2026-01-01T00:00:00+00:00');
         CREATE TABLE web_sessions (token_hash TEXT PRIMARY KEY, csrf_token TEXT NOT NULL,
             created_at TEXT NOT NULL, expires_at TEXT NOT NULL, last_seen TEXT NOT NULL, client_ip TEXT);
+        CREATE TABLE monitors (chat_id INTEGER PRIMARY KEY, chat_title TEXT NOT NULL,
+            chat_type TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1, media_types TEXT,
+            download_dir TEXT, filename_prefix TEXT, min_size INTEGER, max_size INTEGER,
+            keyword TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+        INSERT INTO monitors (chat_id, chat_title, chat_type, created_at, updated_at)
+            VALUES (-100, 'Old chat', 'channel', 'x', 'x');
         PRAGMA user_version = 1;
     """)
     con.close()
@@ -39,8 +45,12 @@ async def test_migrates_v1_database(tmp_path: Path) -> None:
     await db.connect()
     try:
         assert (await db.fetchone("PRAGMA user_version"))[0] == SCHEMA_VERSION
-        admin = await Repository(db).get_admin()
+        repo = Repository(db)
+        admin = await repo.get_admin()
         assert admin == {"username": None, "password_hash": "oldhash"}   # data kept
+        m = await repo.get_monitor(-100)
+        assert m["chat_title"] == "Old chat" and m["direction"] is None
+        assert await repo.list_backfills() == []           # tables missing in v1 are created
     finally:
         await db.close()
     db = Database(path)          # second start: no error, no double migration
@@ -84,3 +94,21 @@ async def test_cli_set_password(cfg, monkeypatch, capsys) -> None:
     assert await cli.cmd_set_password(cfg, t, argparse.Namespace(username="josch")) == 0
     assert await cli.cmd_set_password(cfg, t, argparse.Namespace(username="bad name")) == 1
     assert "cli.password.bad_username" in capsys.readouterr().out
+
+
+def test_failed_migration_does_not_hang_at_exit(tmp_path: Path) -> None:
+    """Regression: an exception inside Database.connect() left the aiosqlite
+    thread running, so the process never exited."""
+    import subprocess
+    import sys
+    path = tmp_path / "broken.db"
+    con = sqlite3.connect(path)
+    # v1 database whose admin "table" is a view: ALTER TABLE fails
+    con.executescript("CREATE VIEW admin AS SELECT 1 AS id; PRAGMA user_version = 1;")
+    con.close()
+    code = ("import asyncio, sys\nfrom pathlib import Path\nfrom tgdl.storage.db import Database\n"
+            "async def main():\n    try:\n        await Database(Path(sys.argv[1])).connect()\n"
+            "    except Exception as e:\n        print('error:', type(e).__name__)\n"
+            "asyncio.run(main())\n")
+    r = subprocess.run([sys.executable, "-c", code, str(path)], capture_output=True, text=True, timeout=20)
+    assert r.returncode == 0 and "error:" in r.stdout

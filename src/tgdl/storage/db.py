@@ -12,12 +12,14 @@ import aiosqlite
 
 from ..config import ensure_private_file
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 SCHEMA_FILE = Path(__file__).with_name("schema.sql")
 
-# Upgrades for existing databases: (version reached, statements).
-MIGRATIONS: list[tuple[int, list[str]]] = [
-    (2, ["ALTER TABLE admin ADD COLUMN username TEXT"]),  # web login needs a username
+# Upgrades for existing databases: (version reached, [(table, column, type)]).
+# Columns are added only if missing, so a partial upgrade can be re-run.
+MIGRATIONS: list[tuple[int, list[tuple[str, str, str]]]] = [
+    (2, [("admin", "username", "TEXT")]),        # web login needs a username
+    (3, [("monitors", "direction", "TEXT")]),    # received-only option
 ]
 
 
@@ -53,11 +55,17 @@ class Database:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         # Autocommit; multi-statement writes use transaction().
         self._conn = await aiosqlite.connect(self.path, isolation_level=None)
-        self._conn.row_factory = aiosqlite.Row
-        await self._conn.execute("PRAGMA journal_mode=WAL")
-        await self._conn.execute("PRAGMA foreign_keys=ON")
-        await self._conn.execute("PRAGMA busy_timeout=5000")
-        await self._migrate()
+        try:
+            self._conn.row_factory = aiosqlite.Row
+            await self._conn.execute("PRAGMA journal_mode=WAL")
+            await self._conn.execute("PRAGMA foreign_keys=ON")
+            await self._conn.execute("PRAGMA busy_timeout=5000")
+            await self._migrate()
+        except BaseException:
+            # aiosqlite runs a non-daemon thread per connection: without this
+            # close, a failed start (e.g. migration error) hangs at exit.
+            await self.close()
+            raise
         self.fix_permissions()
 
     def fix_permissions(self) -> None:
@@ -72,12 +80,21 @@ class Database:
             # fresh database: schema.sql is always the latest version
             await self.conn.executescript(SCHEMA_FILE.read_text(encoding="utf-8"))
         else:
-            for target, statements in MIGRATIONS:
+            for target, columns in MIGRATIONS:
                 if version < target:
-                    for sql in statements:
-                        await self.conn.execute(sql)
+                    for table, column, ctype in columns:
+                        await self._add_column(table, column, ctype)
+            # tables introduced after the database was created
+            await self.conn.executescript(SCHEMA_FILE.read_text(encoding="utf-8"))
         if version < SCHEMA_VERSION:
             await self.conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+
+    async def _add_column(self, table: str, column: str, ctype: str) -> None:
+        rows = await self.conn.execute_fetchall(f"PRAGMA table_info({table})")
+        if not rows:  # table missing: created by schema.sql below with all columns
+            return
+        if column not in {r[1] for r in rows}:
+            await self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ctype}")
 
     async def close(self) -> None:
         if self._conn is not None:

@@ -28,6 +28,8 @@ class MonitorView:
     min_size: int | None
     max_size: int | None
     keyword: str | None
+    direction: str = "all"        # effective
+    direction_custom: bool = False
 
     @property
     def has_filters(self) -> bool:
@@ -53,4 +55,7 @@ def describe(app: "App", m: dict[str, Any]) -> MonitorView:
         download_dir=directory, dir_custom=bool(m.get("download_dir")), dir_error=dir_error,
         prefix=prefix, prefix_custom=m["filename_prefix"] is not None,
         min_size=m.get("min_size"), max_size=m.get("max_size"), keyword=m.get("keyword") or None,
+        direction="all" if m.get("chat_type") == "saved"
+        else (m.get("direction") or defaults["default_direction"]),
+        direction_custom=bool(m.get("direction")) and m.get("chat_type") != "saved",
     )
