@@ -70,7 +70,7 @@ then open <http://localhost:8080>.
 | Page | What you can do |
 |---|---|
 | Dashboard | Active downloads (progress, speed, ETA), queue, failures, today's files/size, per-chat stats, FloodWait countdown |
-| Monitors | Search joined chats and add them; enable/disable/remove; per-chat settings; backfill a date range; backfill task list |
+| Monitors | Search joined chats (and *Saved Messages*) and add them; enable/disable/remove; per-chat settings; backfill a date range; backfill task list |
 | History | Search by chat, category, date, filename; *Failed* tab with retry (one or all); re-download files missing on disk |
 | Logs | Tail of `tgdl.log` or `audit.log`, minimum level, text filter, live updates |
 | Settings | Default directory, concurrency, media types, path template, prefix, timezone, category mapping, default language |
@@ -121,6 +121,10 @@ stored only after the rename.
   and history scans pause separately); downloads already running finish first.
 - **Errors**: network/server errors retry after 5 s, 10 s, 20 s; then the job is
   *failed* (retry it from History). A deleted message fails immediately.
+- **Saved Messages**: listed first under *Add a chat* (search "saved" or
+  "收藏"), or `tgdl monitor add me`. Files go to a `Saved Messages` folder.
+  Media you forward there from a chat that tgdl already downloaded is skipped
+  (same Telegram file).
 - **Albums**: each item is its own job; missing album items are fetched
   automatically.
 - **Ctrl+C**: stop accepting jobs, interrupt running downloads and put them
@@ -299,6 +303,7 @@ ssh -N -L 8080:127.0.0.1:8080 您的帳號@debian主機
 - 佇列存在 SQLite，重新啟動後會繼續；即時訊息優先於歷史回補；同一則訊息或同一個檔案不會重複加入佇列
 - 遇到 FloodWait 時，進行中的下載會先完成，之後暫停到 Telegram 要求的時間結束
 - 網路或伺服器錯誤會在 5、10、20 秒後重試，三次都失敗就標記為失敗，可到「下載紀錄」重試
+- **我的收藏**：在「加入對話」清單最上方（可搜尋「收藏」），或執行 `tgdl monitor add me`；檔案存放在 `Saved Messages` 資料夾。從已下載過的對話轉存進來的同一個檔案會被略過
 - 相簿的每個項目都是獨立的工作，缺漏的項目會自動補抓
 - Ctrl+C 會停止接收新工作、中斷進行中的下載並放回佇列；連按兩次可強制結束
 - **續傳**（設定頁「續傳中斷的下載」，預設開啟）：停止、異常中斷、網路錯誤或 FloodWait 時保留 `.part`，之後確認仍是同一個 Telegram 檔案且大小合理，就從最後一個 512 KB 邊界繼續下載。相片與大小不明的檔案一律重新下載

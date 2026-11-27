@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from ..i18n import from_accept_language, get_translator, normalize_lang
 from ..logging_setup import audit
 from ..storage.db import parse_iso
+from ..telegram.client import SAVED_MESSAGES_TITLE
 from .pagination import Pager, qs_with, remember_per_page
 from .security import (
     CSRF_FIELD, CSRF_HEADER, LANG_COOKIE, SESSION_COOKIE, Session, SessionManager, csrf_ok,
@@ -111,8 +112,10 @@ def flash_message(request: Request) -> tuple[str, str, dict[str, Any]] | None:
 def render(request: Request, name: str, status_code: int = 200, **ctx: Any) -> Response:
     app = core(request)
     session: Session | None = getattr(request.state, "session", None)
+    t = translator_for(request)
     ctx.update(
-        t=translator_for(request),
+        t=t,
+        chat_label=lambda title: t("chat_type.saved") if title == SAVED_MESSAGES_TITLE else title,
         lang=get_lang(request),
         csrf_token=session.csrf_token if session else "",
         logged_in=session is not None,

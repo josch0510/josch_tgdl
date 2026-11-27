@@ -126,7 +126,7 @@
   "monitors.date_to": "To date",
   "monitors.confirm_remove": "Stop monitoring \"{chat}\"? Downloaded files and history are kept.",
   "monitors.add": "Add a chat",
-  "monitors.search": "Search joined groups and channels",
+  "monitors.search": "Search joined groups and channels, or Saved Messages",
   "monitors.refresh": "Reload list",
   "monitors.no_results": "No matching chats.",
   "monitors.already": "Monitored",
@@ -281,5 +281,6 @@
   "monitor.none": "none",
   "monitor.keyword_is": "filename contains \"{keyword}\"",
   "monitor.no_types_selected": "no media types: nothing is downloaded",
-  "monitors.edit_settings": "Edit settings"
+  "monitors.edit_settings": "Edit settings",
+  "chat_type.saved": "Saved Messages"
 }

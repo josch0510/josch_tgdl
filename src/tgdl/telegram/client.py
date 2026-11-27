@@ -26,6 +26,17 @@ log = logging.getLogger("tgdl.telegram")
 Translate = Callable[..., str]
 
 
+# "Saved Messages" (我的收藏) is the private chat with yourself. A fixed title
+# keeps its folder name stable (the UI shows a translated label).
+SAVED_MESSAGES_TITLE = "Saved Messages"
+SAVED_MESSAGES_SEARCH = "saved messages 我的收藏 收藏 已儲存的訊息"
+
+
+def is_saved_messages(dialog: Any) -> bool:
+    return bool(getattr(dialog, "is_user", False)
+                and getattr(getattr(dialog, "entity", None), "is_self", False))
+
+
 @dataclass(frozen=True)
 class ChatInfo:
     chat_id: int
@@ -34,6 +45,8 @@ class ChatInfo:
 
     @classmethod
     def from_entity(cls, entity: Any) -> "ChatInfo":
+        if isinstance(entity, User) and entity.is_self:
+            return cls(chat_id=utils.get_peer_id(entity), title=SAVED_MESSAGES_TITLE, chat_type="saved")
         if isinstance(entity, Channel):
             ctype = "group" if entity.megagroup or entity.gigagroup else "channel"
         elif isinstance(entity, Chat):
@@ -147,6 +160,8 @@ class DialogCache:
 
     @staticmethod
     def from_dialog(d: Any) -> ChatInfo:
+        if is_saved_messages(d):
+            return ChatInfo(chat_id=int(d.id), title=SAVED_MESSAGES_TITLE, chat_type="saved")
         ctype = "group" if getattr(d, "is_group", False) else "channel"
         return ChatInfo(chat_id=int(d.id), title=str(d.name or d.id), chat_type=ctype)
 
@@ -168,8 +183,10 @@ class DialogCache:
                 raise
             self._items = sorted(
                 (self.from_dialog(d) for d in dialogs
-                 if getattr(d, "is_channel", False) or getattr(d, "is_group", False)),
-                key=lambda c: c.title.casefold())
+                 if getattr(d, "is_channel", False) or getattr(d, "is_group", False)
+                 or is_saved_messages(d)),
+                # Saved Messages first, then alphabetically
+                key=lambda c: (c.chat_type != "saved", c.title.casefold()))
             self._at = time.monotonic()
             return self._items
 
@@ -181,4 +198,5 @@ class DialogCache:
         q = query.strip().casefold()
         if not q:
             return items
-        return [c for c in items if q in c.title.casefold() or q == str(c.chat_id)]
+        return [c for c in items if q in c.title.casefold() or q == str(c.chat_id)
+                or (c.chat_type == "saved" and q in SAVED_MESSAGES_SEARCH)]

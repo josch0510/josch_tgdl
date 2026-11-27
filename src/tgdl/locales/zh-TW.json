@@ -126,7 +126,7 @@
   "monitors.date_to": "結束日期",
   "monitors.confirm_remove": "確定要停止監控「{chat}」？已下載的檔案與紀錄會保留。",
   "monitors.add": "加入對話",
-  "monitors.search": "搜尋已加入的群組與頻道",
+  "monitors.search": "搜尋已加入的群組、頻道或「我的收藏」",
   "monitors.refresh": "重新載入清單",
   "monitors.no_results": "沒有符合的對話。",
   "monitors.already": "已監控",
@@ -281,5 +281,6 @@
   "monitor.none": "無",
   "monitor.keyword_is": "檔名包含「{keyword}」",
   "monitor.no_types_selected": "未選擇媒體類型：不會下載任何檔案",
-  "monitors.edit_settings": "編輯設定"
+  "monitors.edit_settings": "編輯設定",
+  "chat_type.saved": "我的收藏"
 }

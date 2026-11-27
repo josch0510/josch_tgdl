@@ -18,7 +18,7 @@
     <tbody>
     {% for a in d.pool.active %}
       <tr>
-        <td>{{ a.chat_title }}</td>
+        <td>{{ chat_label(a.chat_title) }}</td>
         <td class="filename" title="{{ a.file_name }}">{{ a.file_name }}</td>
         <td class="progress-cell">
           <progress max="100" value="{{ a.percent }}"></progress>
@@ -43,7 +43,7 @@
   <h2>{{ t("dash.backfills") }}</h2>
   <ul class="plain">
   {% for b in d.backfills %}
-    <li>{{ b.chat_title }} ({{ b.date_from }} – {{ b.date_to }}): {{ t("backfill.progress", scanned=b.scanned, enqueued=b.enqueued) }}</li>
+    <li>{{ chat_label(b.chat_title) }} ({{ b.date_from }} – {{ b.date_to }}): {{ t("backfill.progress", scanned=b.scanned, enqueued=b.enqueued) }}</li>
   {% endfor %}
   </ul>
 </section>
@@ -56,7 +56,7 @@
     <thead><tr><th>{{ t("col.chat") }}</th><th class="num">{{ t("dash.today_files") }}</th><th class="num">{{ t("col.files_total") }}</th><th class="num">{{ t("col.size_total") }}</th><th>{{ t("col.last_download") }}</th></tr></thead>
     <tbody>
     {% for c in d.per_chat %}
-      <tr><td>{{ c.chat_title or c.chat_id }}</td><td class="num">{{ c.today_files }}</td><td class="num">{{ c.files }}</td><td class="num">{{ c.bytes | size }}</td><td>{{ local_dt(c.last_at) }}</td></tr>
+      <tr><td>{{ chat_label(c.chat_title) or c.chat_id }}</td><td class="num">{{ c.today_files }}</td><td class="num">{{ c.files }}</td><td class="num">{{ c.bytes | size }}</td><td>{{ local_dt(c.last_at) }}</td></tr>
     {% endfor %}
     </tbody>
   </table>

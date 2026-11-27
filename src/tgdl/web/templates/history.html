@@ -13,7 +13,7 @@
   <label>{{ t("col.chat") }}
     <select name="chat">
       <option value="">{{ t("history.all") }}</option>
-      {% for c in chats %}<option value="{{ c.chat_id }}" {% if raw.chat == c.chat_id|string %}selected{% endif %}>{{ c.chat_title or c.chat_id }}</option>{% endfor %}
+      {% for c in chats %}<option value="{{ c.chat_id }}" {% if raw.chat == c.chat_id|string %}selected{% endif %}>{{ chat_label(c.chat_title) or c.chat_id }}</option>{% endfor %}
     </select>
   </label>
   {% if raw.tab == "done" %}
@@ -59,7 +59,7 @@
     {% for r in rows %}
       <tr>
         <td class="nowrap-cell">{{ local_dt(r.downloaded_at) }}</td>
-        <td>{{ r.chat_title or r.chat_id }}<br><span class="muted small mono">#{{ r.message_id }}</span></td>
+        <td>{{ chat_label(r.chat_title) or r.chat_id }}<br><span class="muted small mono">#{{ r.message_id }}</span></td>
         <td>{{ t("cat." ~ r.category) }}<br><span class="muted small">{{ t("kind." ~ r.media_kind) }}</span></td>
         <td class="filename" title="{{ r.saved_path }}">{{ r.file_name }}
           {% if not r.exists %}<br><span class="text-err small">{{ t("history.file_missing") }}</span>{% endif %}</td>
@@ -84,7 +84,7 @@
     {% for r in rows %}
       <tr>
         <td class="nowrap-cell">{{ local_dt(r.updated_at) }}</td>
-        <td>{{ r.chat_title or r.chat_id }}<br><span class="muted small mono">#{{ r.message_id }}</span></td>
+        <td>{{ chat_label(r.chat_title) or r.chat_id }}<br><span class="muted small mono">#{{ r.message_id }}</span></td>
         <td>{{ t("kind." ~ r.media_kind) }}</td>
         <td class="filename" title="{{ r.file_name }}">{{ r.file_name or "-" }}</td>
         <td class="mono small">{{ r.last_error or "-" }}</td>

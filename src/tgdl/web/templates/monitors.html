@@ -12,7 +12,7 @@
     <tbody>
     {% for m in monitors %}
       <tr>
-        <td><strong>{{ m.chat_title }}</strong><br><span class="muted mono">{{ m.chat_id }}</span></td>
+        <td><strong>{{ chat_label(m.chat_title) }}</strong><br><span class="muted mono">{{ m.chat_id }}</span></td>
         <td class="nowrap-cell">{{ t("chat_type." ~ m.chat_type) }}</td>
         <td>
           <form method="post" action="/monitors/{{ m.chat_id }}/toggle" class="inline">{{ csrf() }}<input type="hidden" name="back" value="{{ back }}">
@@ -41,7 +41,7 @@
           {% endif %}
         </td>
         <td>
-          <form method="post" action="/monitors/{{ m.chat_id }}/delete" class="inline" data-confirm="{{ t('monitors.confirm_remove', chat=m.chat_title) }}">{{ csrf() }}<input type="hidden" name="back" value="{{ back }}">
+          <form method="post" action="/monitors/{{ m.chat_id }}/delete" class="inline" data-confirm="{{ t('monitors.confirm_remove', chat=chat_label(m.chat_title)) }}">{{ csrf() }}<input type="hidden" name="back" value="{{ back }}">
             <button type="submit" class="btn btn-small btn-danger">{{ t("common.remove") }}</button>
           </form>
         </td>
@@ -74,7 +74,7 @@
     {% for b in backfills %}
       {% set p = live_backfill.get(b.id) %}
       <tr>
-        <td>{{ b.chat_title or b.chat_id }}</td>
+        <td>{{ chat_label(b.chat_title) or b.chat_id }}</td>
         <td>{{ local_dt(b.date_from, "%Y-%m-%d") }} – {{ local_dt(b.date_to_incl, "%Y-%m-%d") }}</td>
         <td>{{ t("backfill.status_" ~ ((p.status if p else b.status))) }}</td>
         <td class="num">{{ p.scanned if p else b.scanned }}</td>

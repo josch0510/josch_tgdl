@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% from "_macros.html" import csrf with context %}
-{% block title %}{{ t("monitor.settings_title", chat=m.chat_title) }}{% endblock %}
+{% block title %}{{ t("monitor.settings_title", chat=chat_label(m.chat_title)) }}{% endblock %}
 {% block content %}
 <p><a href="/monitors">← {{ t("nav.monitors") }}</a></p>
-<h1>{{ t("monitor.settings_title", chat=m.chat_title) }}</h1>
+<h1>{{ t("monitor.settings_title", chat=chat_label(m.chat_title)) }}</h1>
 {% if error %}<div class="banner banner-err" role="alert">{{ t(error) }}</div>{% endif %}
 <form method="post" action="/monitors/{{ m.chat_id }}/settings" class="card stack">{{ csrf() }}
   <fieldset>

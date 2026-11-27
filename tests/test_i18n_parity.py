@@ -73,7 +73,7 @@ def test_every_template_key_is_translated() -> None:
             if not key.endswith("_") and f"flash.{key}" not in en:
                 missing.add(f"{f.name}:flash.{key}")
     families = {
-        "kind": MEDIA_KINDS, "cat": CATEGORIES, "chat_type": ("channel", "group", "user"),
+        "kind": MEDIA_KINDS, "cat": CATEGORIES, "chat_type": ("channel", "group", "user", "saved"),
         "flood.scope": ("download", "api"), "lang": SUPPORTED,
         "backfill.status": ("running", "done", "failed", "cancelled"),
         "flash.job": ("skipped", "not_failed"),          # err="job_" + retry_job() result
