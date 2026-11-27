@@ -151,6 +151,25 @@ async def test_rejected_host_is_logged(web, app) -> None:
     assert any("host_rejected" in e["line"] and "debian.lan" in e["line"] for e in ring_buffer.records)
 
 
+def test_own_hostname_allowed(monkeypatch, tmp_path) -> None:
+    import socket
+
+    from tgdl import config
+    from tgdl.web.server import host_allowed
+    monkeypatch.setattr(socket, "gethostname", lambda: "Debian")
+    monkeypatch.setattr(socket, "getfqdn", lambda name="": "debian.home.lan")
+    config.local_host_names.cache_clear()
+    try:
+        cfg = config.AppConfig(home=tmp_path, api_id=None, api_hash=None,
+                               allowed_base_dirs=(tmp_path,), web_host="0.0.0.0", web_port=5000)
+        allowed = {h.strip("[]") for h in cfg.allowed_hosts}
+        assert host_allowed("debian:5000", allowed)
+        assert host_allowed("debian.home.lan:5000", allowed)
+        assert not host_allowed("evil.example:5000", allowed)
+    finally:
+        config.local_host_names.cache_clear()
+
+
 async def test_allowed_hosts_from_env(tmp_path) -> None:
     import httpx
 

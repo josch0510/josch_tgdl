@@ -40,7 +40,7 @@ $EDITOR .env
 | `API_ID`, `API_HASH` | Telegram API credentials (never shown in the UI or logs) |
 | `ALLOWED_BASE_DIRS` | Directories files may be written to, separated by `:`. The web UI can only pick directories **inside** these. |
 | `WEB_HOST`, `WEB_PORT` | Web UI bind address, default `127.0.0.1:8080` |
-| `ALLOWED_HOSTS` | Extra host *names* for the UI, comma separated (localhost and IP addresses always work) |
+| `ALLOWED_HOSTS` | Extra host *names* for the UI, comma separated (localhost, IP addresses and this machine's own host name always work) |
 | `COOKIE_SECURE` | `true` only if the UI is served over HTTPS |
 
 ## First run
@@ -125,7 +125,8 @@ stored only after the rename.
 ## Web security
 
 - Binds to 127.0.0.1; host-name allowlist against DNS rebinding (IP addresses
-  and localhost always accepted; other names via `ALLOWED_HOSTS`)
+  localhost and this machine's own host name always accepted; other names via
+  `ALLOWED_HOSTS`)
 - One admin account, argon2id password hash, verified off the event loop
 - Server-side sessions; cookie `HttpOnly; SameSite=Strict`; 2 h idle / 12 h
   absolute expiry; all sessions revoked when the password changes
@@ -173,7 +174,7 @@ Log format: `timestamp | level | chat=… | msg_id=… | action=… | reason=…
 | `Not logged in to Telegram` | Run `tgdl login` again (e.g. after the session was terminated in Telegram) |
 | Web UI says no password is set | `tgdl set-password` |
 | Locked out after wrong passwords | Wait 15 minutes, or stop tgdl and run `sqlite3 data/tgdl.db "DELETE FROM login_failures"` |
-| Browser shows `Host not allowed` | You opened the UI by a host *name*. Use `http://localhost:8080` via the SSH tunnel or the server's IP, or add the name to `ALLOWED_HOSTS` in `.env` and restart |
+| Browser shows `Host not allowed` | You opened the UI by a host *name* other than this machine's own name. Use `http://localhost:8080` via the SSH tunnel or the server's IP, or add the name to `ALLOWED_HOSTS` in `.env` and restart |
 | `Cannot start the web UI … Address already in use` | Another program uses the port: change `WEB_PORT` |
 | "Directory is outside the allowed base directories" | Add the parent directory to `ALLOWED_BASE_DIRS` in `.env` and restart |
 | Long FloodWait | Normal Telegram rate limiting; lower the concurrency in Settings |
@@ -225,7 +226,7 @@ $EDITOR .env
 | `API_ID`、`API_HASH` | 到 <https://my.telegram.org> 的 *API development tools* 申請；不會出現在網頁或日誌中 |
 | `ALLOWED_BASE_DIRS` | 允許寫入檔案的根目錄，多個目錄用 `:` 分隔。網頁上只能選擇這些目錄**底下**的位置 |
 | `WEB_HOST`、`WEB_PORT` | 網頁介面監聽位址，預設 `127.0.0.1:8080` |
-| `ALLOWED_HOSTS` | 額外允許的主機「名稱」，以逗號分隔（localhost 與 IP 位址一律可用） |
+| `ALLOWED_HOSTS` | 額外允許的主機「名稱」，以逗號分隔（localhost、IP 位址與本機主機名稱一律可用） |
 | `COOKIE_SECURE` | 只有透過 HTTPS 提供網頁時才設為 `true` |
 
 ### 第一次執行
@@ -291,7 +292,7 @@ ssh -N -L 8080:127.0.0.1:8080 您的帳號@debian主機
 | 顯示「尚未登入 Telegram」 | 重新執行 `tgdl login` |
 | 網頁顯示尚未設定密碼 | 執行 `tgdl set-password` |
 | 密碼輸錯太多次被鎖定 | 等 15 分鐘；或停止 tgdl 後執行 `sqlite3 data/tgdl.db "DELETE FROM login_failures"` |
-| 瀏覽器顯示 `Host not allowed` | 您是用主機「名稱」連線。請透過 SSH tunnel 使用 `http://localhost:8080`、改用伺服器 IP，或把該名稱加入 `.env` 的 `ALLOWED_HOSTS` 後重新啟動 |
+| 瀏覽器顯示 `Host not allowed` | 您用的主機名稱不是本機的主機名稱。請透過 SSH tunnel 使用 `http://localhost:8080`、改用伺服器 IP，或把該名稱加入 `.env` 的 `ALLOWED_HOSTS` 後重新啟動 |
 | 「無法啟動網頁介面…Address already in use」 | 埠號被其他程式占用，請修改 `WEB_PORT` |
 | 「目錄不在允許的下載根目錄之下」 | 在 `.env` 的 `ALLOWED_BASE_DIRS` 加入該目錄的上層目錄，然後重新啟動 |
 | FloodWait 時間很長 | 這是 Telegram 正常的速率限制，可在「設定」頁調低同時下載數 |

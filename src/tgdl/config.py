@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import functools
 import logging
 import os
+import socket
 import stat
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -36,6 +38,23 @@ def ensure_private_file(path: Path) -> bool:
     return False
 
 
+@functools.lru_cache(maxsize=1)
+def local_host_names() -> tuple[str, ...]:
+    """This machine's host name, e.g. "debian", plus its FQDN if different."""
+    names: set[str] = set()
+    try:
+        short = socket.gethostname().strip().lower()
+        if short:
+            names.add(short)
+            names.add(short.split(".")[0])
+        fqdn = socket.getfqdn(short).strip().lower() if short else ""
+        if fqdn and "." in fqdn and not fqdn.startswith("localhost"):
+            names.add(fqdn)
+    except OSError:
+        pass
+    return tuple(sorted(n for n in names if n and n != "localhost"))
+
+
 def _bool(v: str | None, default: bool = False) -> bool:
     if v is None or v == "":
         return default
@@ -55,10 +74,13 @@ class AppConfig:
 
     @property
     def allowed_hosts(self) -> list[str]:
-        """Host header values the web UI answers to (DNS-rebinding guard)."""
-        hosts = {"localhost", "127.0.0.1", "::1", "[::1]", *self.extra_hosts}
+        """Host names the web UI answers to (DNS-rebinding guard). IP
+        addresses are always accepted separately. The machine's own host
+        name is included: an attacker cannot make a victim's browser use it
+        for their own site."""
+        hosts = {"localhost", "127.0.0.1", "::1", "[::1]", *self.extra_hosts, *local_host_names()}
         if self.web_host not in ("0.0.0.0", "::", ""):
-            hosts.add(self.web_host)
+            hosts.add(self.web_host.lower())
         return sorted(hosts)
 
     @property
