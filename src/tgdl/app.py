@@ -202,6 +202,9 @@ async def run_server(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> 
         print(t("cli.serve.started", name=app.me_name, monitors=app.monitors.enabled_count,
                 concurrency=settings.get("concurrency")))
         print(t("cli.serve.web_url", url=f"http://{cfg.web_host}:{cfg.web_port}/"))
+        if cfg.web_host in ("0.0.0.0", "::"):
+            print(t("cli.serve.all_interfaces", port=cfg.web_port,
+                    hosts=", ".join(h for h in cfg.allowed_hosts if h not in ("::1", "[::1]"))))
         if await repo.get_password_hash() is None:
             print(t("cli.serve.no_password"))
 

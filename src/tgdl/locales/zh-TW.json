@@ -271,5 +271,6 @@
   "flash.job_not_failed": "該下載目前不是失敗狀態。",
   "flash.redownload_queued": "已加入佇列，將重新下載。",
   "flash.missing_requeued": "已將 {n} 個遺失的檔案加入佇列重新下載。",
-  "flash.file_exists": "檔案仍然存在，不需要重新下載。"
+  "flash.file_exists": "檔案仍然存在，不需要重新下載。",
+  "cli.serve.all_interfaces": "正在監聽所有網路介面：請用 http://伺服器IP:{port}/ 連線（IP 位址一律可用）。允許的主機名稱：{hosts}。其他名稱請加入 .env 的 ALLOWED_HOSTS。"
 }

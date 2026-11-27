@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import ipaddress
 import logging
 import socket
 from collections.abc import Iterator
@@ -13,7 +14,6 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from ..logging_setup import log_event
@@ -64,6 +64,71 @@ class SecurityHeadersMiddleware:
         await self.app(scope, receive, send_wrapper)
 
 
+HOST_REJECTED_TEXT = (
+    "Host not allowed: {host}\n\n"
+    "This name is not in the list of allowed host names (protection against DNS rebinding).\n"
+    "Use http://localhost:PORT through an SSH tunnel, the server's IP address, or add the name\n"
+    "to ALLOWED_HOSTS in .env (comma separated) and restart tgdl.\n\n"
+    "不允許的主機名稱：{host}\n\n"
+    "此名稱不在允許清單中（防止 DNS rebinding 攻擊）。\n"
+    "請透過 SSH tunnel 使用 http://localhost:埠號、改用伺服器的 IP 位址，\n"
+    "或在 .env 的 ALLOWED_HOSTS 加入此名稱（以逗號分隔）後重新啟動 tgdl。\n"
+)
+
+
+def split_host(header: str) -> str | None:
+    """Host header -> lowercase host without port; None if malformed."""
+    h = header.strip().lower()
+    if not h or any(c in h for c in " /\\@?#"):
+        return None
+    if h.startswith("["):  # [IPv6]:port
+        end = h.find("]")
+        return h[1:end] if end > 0 else None
+    if h.count(":") == 1:
+        h, _, port = h.partition(":")
+        if port and not port.isdigit():
+            return None
+    return h or None
+
+
+def host_allowed(header: str | None, allowed: set[str]) -> bool:
+    """IP literals are always fine: DNS rebinding needs an attacker-controlled
+    *name*. Names must be listed (localhost + ALLOWED_HOSTS + WEB_HOST)."""
+    host = split_host(header or "")
+    if host is None:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        return host in allowed or host.rstrip(".") in allowed
+
+
+class HostGuardMiddleware:
+    def __init__(self, app: ASGIApp, allowed_hosts: list[str]) -> None:
+        self.app = app
+        self.allowed = {h.strip("[]").lower() for h in allowed_hosts}
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        raw = ""
+        for k, v in scope.get("headers", []):
+            if k == b"host":
+                raw = v.decode("latin-1")
+                break
+        if host_allowed(raw, self.allowed):
+            await self.app(scope, receive, send)
+            return
+        shown = "".join(c for c in raw[:100] if c.isprintable()) or "(empty)"
+        log_event(log, logging.WARNING, "host_rejected",
+                  f"host={shown!r}; add it to ALLOWED_HOSTS in .env to allow it",
+                  reason="host_not_allowed")
+        await PlainTextResponse(HOST_REJECTED_TEXT.format(host=shown), status_code=400)(
+            scope, receive, send)
+
+
 def create_app(core: "App") -> FastAPI:
     from .routes import auth, dashboard, history, logs, monitors, settings
 
@@ -72,7 +137,7 @@ def create_app(core: "App") -> FastAPI:
     app.state.sessions = SessionManager(core.repo)
     app.state.limiter = LoginLimiter(core.repo)
 
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=core.cfg.allowed_hosts)
+    app.add_middleware(HostGuardMiddleware, allowed_hosts=core.cfg.allowed_hosts)
     app.add_middleware(SecurityHeadersMiddleware)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 

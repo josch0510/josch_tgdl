@@ -271,5 +271,6 @@
   "flash.job_not_failed": "That download is not in the failed state.",
   "flash.redownload_queued": "Queued for download again.",
   "flash.missing_requeued": "{n} missing file(s) queued for download.",
-  "flash.file_exists": "The file still exists; nothing to do."
+  "flash.file_exists": "The file still exists; nothing to do.",
+  "cli.serve.all_interfaces": "Listening on all interfaces: open http://SERVER-IP:{port}/ (IP addresses always work). Host names allowed: {hosts}. Add other names to ALLOWED_HOSTS in .env."
 }

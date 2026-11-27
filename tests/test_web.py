@@ -130,9 +130,37 @@ async def test_security_headers(web) -> None:
     assert "<script>" not in r.text and " onclick=" not in r.text and " style=" not in r.text
 
 
-async def test_host_header_allowlist(web) -> None:
-    r = await web.get("/login", headers={"Host": "evil.example"})
-    assert r.status_code == 400
+@pytest.mark.parametrize("host, ok", [
+    ("localhost:8080", True), ("LOCALHOST:8080", True), ("127.0.0.1:8080", True),
+    ("[::1]:8080", True), ("localhost:18080", True),
+    ("192.168.1.20:8080", True), ("10.0.0.5", True), ("[fe80::1]:8080", True),  # IPs: no rebinding
+    ("evil.example", False), ("evil.example:8080", False), ("debian.lan:8080", False),
+    ("localhost.evil.example", False), ("", False), ("a b", False), ("x:y:z", False),
+])
+async def test_host_header_check(web, host, ok) -> None:
+    r = await web.get("/login", headers={"Host": host})
+    assert (r.status_code != 400) is ok, host
+    if not ok:
+        assert "ALLOWED_HOSTS" in r.text
+
+
+async def test_rejected_host_is_logged(web, app) -> None:
+    from tgdl.logging_setup import ring_buffer, setup_logging
+    setup_logging(app.cfg.logs_dir, console=False)
+    await web.get("/login", headers={"Host": "debian.lan:8080"})
+    assert any("host_rejected" in e["line"] and "debian.lan" in e["line"] for e in ring_buffer.records)
+
+
+async def test_allowed_hosts_from_env(tmp_path) -> None:
+    import httpx
+
+    from tgdl.config import load_config
+    (tmp_path / ".env").write_text(f"ALLOWED_HOSTS=Debian.LAN, nas.local\nALLOWED_BASE_DIRS={tmp_path}\n")
+    cfg = load_config(tmp_path)
+    from tgdl.web.server import host_allowed
+    allowed = {h.strip("[]") for h in cfg.allowed_hosts}
+    assert host_allowed("debian.lan:8080", allowed) and host_allowed("nas.local", allowed)
+    assert not host_allowed("other.lan", allowed)
 
 
 async def test_no_secrets_in_pages(web, app, with_password) -> None:
