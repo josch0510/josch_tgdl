@@ -55,14 +55,15 @@ class Pipeline:
 
     def target_for(self, job: dict[str, Any], info: MediaInfo, rules: ChatRules) -> tuple[str, Path]:
         category = classify(info.kind, info.mime_type, info.file_name, self.settings.category_map)
+        message_date = parse_iso(job["message_date"])
         ctx = PathContext(
             base_dir=rules.download_dir,
             chat_name=job["chat_title"] or str(job["chat_id"]),
             chat_id=job["chat_id"],
             category=category,
             msg_id=job["message_id"],
-            filename=info.file_name,
-            message_date=parse_iso(job["message_date"]),
+            filename=info.local_name(message_date, self.settings.tz),
+            message_date=message_date,
             tz=self.settings.tz,
             grouped_id=job["grouped_id"],
             prefix_template=rules.prefix,

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ t("nav.history") }}{% endblock %}
+{% block content %}
+<h1>{{ t("nav.history") }}</h1>
+<nav class="tabs">
+  <a href="/history?{{ tab_qs.done }}" {% if raw.tab == "done" %}aria-current="page"{% endif %}>{{ t("history.tab_done") }}</a>
+  <a href="/history?{{ tab_qs.failed }}" {% if raw.tab == "failed" %}aria-current="page"{% endif %}>{{ t("history.tab_failed") }}{% if failed_count %} <span class="badge">{{ failed_count }}</span>{% endif %}</a>
+</nav>
+
+<form method="get" action="/history" class="card filters">
+  <input type="hidden" name="tab" value="{{ raw.tab }}">
+  <label>{{ t("col.chat") }}
+    <select name="chat">
+      <option value="">{{ t("history.all") }}</option>
+      {% for c in chats %}<option value="{{ c.chat_id }}" {% if raw.chat == c.chat_id|string %}selected{% endif %}>{{ c.chat_title or c.chat_id }}</option>{% endfor %}
+    </select>
+  </label>
+  {% if raw.tab == "done" %}
+  <label>{{ t("col.category") }}
+    <select name="category">
+      <option value="">{{ t("history.all") }}</option>
+      {% for c in categories %}<option value="{{ c }}" {% if raw.category == c %}selected{% endif %}>{{ t("cat." ~ c) }}</option>{% endfor %}
+    </select>
+  </label>
+  {% endif %}
+  <label>{{ t("history.date_from") }}<input type="date" name="date_from" value="{{ raw.date_from }}"></label>
+  <label>{{ t("history.date_to") }}<input type="date" name="date_to" value="{{ raw.date_to }}"></label>
+  <label class="grow">{{ t("history.filename") }}<input type="search" name="q" value="{{ raw.q }}" maxlength="200"></label>
+  <div class="filter-actions">
+    <button type="submit" class="btn btn-primary">{{ t("history.search") }}</button>
+    <a class="btn" href="/history?tab={{ raw.tab }}">{{ t("history.reset") }}</a>
+  </div>
+</form>
+{% if error %}<div class="banner banner-err">{{ t(error) }}</div>{% endif %}
+
+<section class="card">
+  <div class="card-head">
+    <span class="muted">{{ t("history.total", n=total) }}</span>
+    {% if raw.tab == "failed" and total %}
+    <form method="post" action="/history/retry-failed" class="inline" data-confirm="{{ t('history.confirm_retry_all') }}">{{ csrf() }}
+      <input type="hidden" name="back" value="{{ back }}">
+      <button type="submit" class="btn btn-small">{{ t("history.retry_all") }}</button>
+    </form>
+    {% elif raw.tab == "done" %}
+    <form method="post" action="/history/redownload-missing" class="inline" data-confirm="{{ t('history.confirm_missing') }}">{{ csrf() }}
+      <input type="hidden" name="back" value="{{ back }}">
+      <button type="submit" class="btn btn-small">{{ t("history.redownload_missing") }}</button>
+    </form>
+    {% endif %}
+  </div>
+
+  {% if not rows %}
+  <p class="muted">{{ t("history.empty") }}</p>
+  {% elif raw.tab == "done" %}
+  <table class="table">
+    <thead><tr><th>{{ t("history.downloaded_at") }}</th><th>{{ t("col.chat") }}</th><th>{{ t("col.type") }}</th><th>{{ t("col.file") }}</th><th class="num">{{ t("col.size") }}</th><th>{{ t("history.message_date") }}</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td class="nowrap-cell">{{ local_dt(r.downloaded_at) }}</td>
+        <td>{{ r.chat_title or r.chat_id }}<br><span class="muted small mono">#{{ r.message_id }}</span></td>
+        <td>{{ t("cat." ~ r.category) }}<br><span class="muted small">{{ t("kind." ~ r.media_kind) }}</span></td>
+        <td class="filename" title="{{ r.saved_path }}">{{ r.file_name }}
+          {% if not r.exists %}<br><span class="text-err small">{{ t("history.file_missing") }}</span>{% endif %}</td>
+        <td class="num">{{ r.file_size | size }}</td>
+        <td class="nowrap-cell">{{ local_dt(r.message_date) }}</td>
+        <td>
+          {% if not r.exists %}
+          <form method="post" action="/history/redownload/{{ r.id }}" class="inline">{{ csrf() }}
+            <input type="hidden" name="back" value="{{ back }}">
+            <button type="submit" class="btn btn-small">{{ t("history.redownload") }}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <table class="table">
+    <thead><tr><th>{{ t("history.failed_at") }}</th><th>{{ t("col.chat") }}</th><th>{{ t("col.type") }}</th><th>{{ t("col.file") }}</th><th>{{ t("history.error") }}</th><th class="num">{{ t("history.attempts") }}</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td class="nowrap-cell">{{ local_dt(r.updated_at) }}</td>
+        <td>{{ r.chat_title or r.chat_id }}<br><span class="muted small mono">#{{ r.message_id }}</span></td>
+        <td>{{ t("kind." ~ r.media_kind) }}</td>
+        <td class="filename" title="{{ r.file_name }}">{{ r.file_name or "-" }}</td>
+        <td class="mono small">{{ r.last_error or "-" }}</td>
+        <td class="num">{{ r.attempts }}</td>
+        <td>
+          <form method="post" action="/history/retry/{{ r.id }}" class="inline">{{ csrf() }}
+            <input type="hidden" name="back" value="{{ back }}">
+            <button type="submit" class="btn btn-small">{{ t("history.retry") }}</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if pages > 1 %}
+  <nav class="pager">
+    {% if page > 1 %}<a class="btn btn-small" href="/history?{{ qs_prev }}">← {{ t("history.prev") }}</a>{% endif %}
+    <span class="muted">{{ t("history.page", page=page, pages=pages) }}</span>
+    {% if page < pages %}<a class="btn btn-small" href="/history?{{ qs_next }}">{{ t("history.next") }} →</a>{% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% endblock %}

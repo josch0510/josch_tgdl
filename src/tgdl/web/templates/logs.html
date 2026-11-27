@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{{ t("nav.logs") }}{% endblock %}
+{% block content %}
+<h1>{{ t("nav.logs") }}</h1>
+<form method="get" action="/logs" class="card filters">
+  <label>{{ t("logs.source") }}
+    <select name="source">
+      <option value="app" {% if p.source == "app" %}selected{% endif %}>{{ t("logs.source_app") }}</option>
+      <option value="audit" {% if p.source == "audit" %}selected{% endif %}>{{ t("logs.source_audit") }}</option>
+    </select>
+  </label>
+  <label>{{ t("logs.min_level") }}
+    <select name="level">
+      {% for l in levels %}<option value="{{ l }}" {% if p.level == l %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>{{ t("logs.lines") }}
+    <select name="lines">
+      {% for n in line_choices %}<option value="{{ n }}" {% if p.lines == n %}selected{% endif %}>{{ n }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="grow">{{ t("logs.filter") }}<input type="search" name="q" value="{{ p.q }}" maxlength="200"></label>
+  <input type="hidden" name="live" value="{{ '1' if p.live else '0' }}">
+  <div class="filter-actions">
+    <button type="submit" class="btn btn-primary">{{ t("history.search") }}</button>
+    <a class="btn" href="/logs?{{ toggle_live_qs }}">{{ t("logs.live_off") if p.live else t("logs.live_on") }}</a>
+  </div>
+</form>
+<p class="hint">{{ t("logs.english_note") }}{% if p.live %} · <span class="text-ok">{{ t("logs.live_active") }}</span>{% endif %}</p>
+<section class="card">
+  <div id="log-lines" {% if p.live %}data-live-url="/partials/logs?{{ qs }}" data-live-events="log"{% endif %}>
+    {% include "partials/log_lines.html" %}
+  </div>
+</section>
+{% endblock %}

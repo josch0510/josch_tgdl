@@ -1,0 +1,8 @@
+{% if entries %}
+<div class="log">
+{% for e in entries %}<pre class="log-line lvl-{{ (e.level or 'none') | lower }}">{{ e.text }}</pre>
+{% endfor %}
+</div>
+{% else %}
+<p class="muted">{{ t("logs.empty") }}</p>
+{% endif %}

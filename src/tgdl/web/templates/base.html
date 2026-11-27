@@ -17,7 +17,8 @@
   <nav class="nav">
     <a href="/" {% if path == "/" %}aria-current="page"{% endif %}>{{ t("nav.dashboard") }}</a>
     <a href="/monitors" {% if path.startswith("/monitors") %}aria-current="page"{% endif %}>{{ t("nav.monitors") }}</a>
-    {# history / logs: phase d #}
+    <a href="/history" {% if path.startswith("/history") %}aria-current="page"{% endif %}>{{ t("nav.history") }}</a>
+    <a href="/logs" {% if path.startswith("/logs") %}aria-current="page"{% endif %}>{{ t("nav.logs") }}</a>
     <a href="/settings" {% if path.startswith("/settings") %}aria-current="page"{% endif %}>{{ t("nav.settings") }}</a>
   </nav>
   {% endif %}
@@ -40,7 +41,7 @@
   <div id="flood-global" data-live-url="/partials/flood" data-live-events="flood">{{ flood_banner(flood, t) }}</div>
   {% endif %}
   {% if flash %}
-  <div class="banner {{ 'banner-ok' if flash[0] == 'ok' else 'banner-err' }}" role="status">{{ t(flash[1]) }}</div>
+  <div class="banner {{ 'banner-ok' if flash[0] == 'ok' else 'banner-err' }}" role="status">{{ t(flash[1], **flash[2]) }}</div>
   {% endif %}
   {% block content %}{% endblock %}
 </main>

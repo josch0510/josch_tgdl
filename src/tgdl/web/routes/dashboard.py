@@ -23,7 +23,8 @@ router = APIRouter()
 SSE_PING_SECONDS = 15
 SSE_RECHECK_SESSION_SECONDS = 60
 # Event types the browser cares about (others stay server-side).
-SSE_TYPES = {"progress", "job_start", "job_end", "queue", "flood", "pool", "backfill", "monitors"}
+SSE_TYPES = {"progress", "job_start", "job_end", "queue", "flood", "pool", "backfill", "monitors",
+             "log"}
 
 
 async def dashboard_data(app: "App") -> dict[str, Any]:

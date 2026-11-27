@@ -70,15 +70,17 @@ def test_every_template_key_is_translated() -> None:
             if key not in en:
                 missing.add(f"{f.name}:{key}")
         for key in re.findall(r'(?:ok|err)="([a-z_]+)"', text):
-            if f"flash.{key}" not in en:
+            if not key.endswith("_") and f"flash.{key}" not in en:
                 missing.add(f"{f.name}:flash.{key}")
     families = {
         "kind": MEDIA_KINDS, "cat": CATEGORIES, "chat_type": ("channel", "group", "user"),
         "flood.scope": ("download", "api"), "lang": SUPPORTED,
         "backfill.status": ("running", "done", "failed", "cancelled"),
+        "flash.job": ("skipped", "not_failed"),          # err="job_" + retry_job() result
+        "flash": ("bad_range", "already_running", "not_monitored"),  # BackfillError codes
     }
     for prefix, items in families.items():
-        sep = "_" if prefix in ("flood.scope", "backfill.status") else "."
+        sep = "_" if prefix in ("flood.scope", "backfill.status", "flash.job") else "."
         for item in items:
             if f"{prefix}{sep}{item}" not in en:
                 missing.add(f"{prefix}{sep}{item}")

@@ -32,6 +32,41 @@ class NewJob:
     priority: int = 0
 
 
+# ---------------------------------------------------------------- history
+def _like(text: str) -> str:
+    """LIKE pattern matching ``text`` literally (escape char: backslash)."""
+    return "%" + text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+
+
+@dataclass(frozen=True)
+class HistoryFilter:
+    chat_id: int | None = None
+    category: str | None = None
+    query: str = ""                 # filename substring
+    since: datetime | None = None   # inclusive, UTC
+    until: datetime | None = None   # exclusive, UTC
+
+
+def _where(f: HistoryFilter, date_col: str, *, category: bool) -> tuple[str, list[Any]]:
+    clauses, params = [], []
+    if f.chat_id is not None:
+        clauses.append("chat_id = ?")
+        params.append(f.chat_id)
+    if category and f.category:
+        clauses.append("category = ?")
+        params.append(f.category)
+    if f.query:
+        clauses.append("file_name LIKE ? ESCAPE '\\'")
+        params.append(_like(f.query))
+    if f.since is not None:
+        clauses.append(f"{date_col} >= ?")
+        params.append(iso(f.since))
+    if f.until is not None:
+        clauses.append(f"{date_col} < ?")
+        params.append(iso(f.until))
+    return (" WHERE " + " AND ".join(clauses)) if clauses else "", params
+
+
 class Repository:
     def __init__(self, db: Database) -> None:
         self.db = db
@@ -334,3 +369,91 @@ class Repository:
                 )
         except sqlite3.IntegrityError as exc:
             raise DuplicateDownload(str(exc)) from exc
+
+    # ------------------------------------------------------------- history
+    async def search_downloads(self, f: HistoryFilter, *, limit: int, offset: int
+                               ) -> tuple[list[dict[str, Any]], int]:
+        where, params = _where(f, "downloaded_at", category=True)
+        total_row = await self.db.fetchone(f"SELECT COUNT(*) AS n FROM downloads{where}", tuple(params))
+        rows = await self.db.fetchall(
+            f"SELECT * FROM downloads{where} ORDER BY downloaded_at DESC, id DESC LIMIT ? OFFSET ?",
+            (*params, limit, offset))
+        return [dict(r) for r in rows], (total_row["n"] if total_row else 0)
+
+
+    async def search_failed_jobs(self, f: HistoryFilter, *, limit: int, offset: int
+                                 ) -> tuple[list[dict[str, Any]], int]:
+        where, params = _where(f, "updated_at", category=False)
+        where = (where + " AND " if where else " WHERE ") + "status = 'failed'"
+        total_row = await self.db.fetchone(f"SELECT COUNT(*) AS n FROM jobs{where}", tuple(params))
+        rows = await self.db.fetchall(
+            f"SELECT * FROM jobs{where} ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?",
+            (*params, limit, offset))
+        return [dict(r) for r in rows], (total_row["n"] if total_row else 0)
+
+
+    async def history_chats(self) -> list[dict[str, Any]]:
+        rows = await self.db.fetchall(
+            "SELECT chat_id, MAX(chat_title) AS chat_title FROM ("
+            " SELECT chat_id, chat_title FROM downloads UNION ALL"
+            " SELECT chat_id, chat_title FROM jobs WHERE status = 'failed' UNION ALL"
+            " SELECT chat_id, chat_title FROM monitors) GROUP BY chat_id ORDER BY chat_title COLLATE NOCASE")
+        return [dict(r) for r in rows]
+
+
+    async def retry_job(self, job_id: int) -> str:
+        """Put a failed job back in the queue. Returns 'queued', 'skipped'
+        (already downloaded / already queued elsewhere) or 'not_failed'."""
+        job = await self.get_job(job_id)
+        if job is None or job["status"] != "failed":
+            return "not_failed"
+        dup = await self.find_duplicate(job["chat_id"], job["message_id"], job["media_unique_id"])
+        if dup:
+            await self.set_job_status(job_id, "skipped", error=dup)
+            return "skipped"
+        try:
+            await self.db.execute(
+                "UPDATE jobs SET status = 'pending', attempts = 0, not_before = NULL, last_error = NULL, "
+                "source = 'retry', priority = 0, updated_at = ? WHERE id = ? AND status = 'failed'",
+                (iso(), job_id))
+        except sqlite3.IntegrityError:
+            await self.set_job_status(job_id, "skipped", error="queued_message")
+            return "skipped"
+        return "queued"
+
+
+    async def failed_job_ids(self) -> list[int]:
+        rows = await self.db.fetchall("SELECT id FROM jobs WHERE status = 'failed' ORDER BY id")
+        return [r["id"] for r in rows]
+
+
+    async def get_download(self, download_id: int) -> dict[str, Any] | None:
+        row = await self.db.fetchone("SELECT * FROM downloads WHERE id = ?", (download_id,))
+        return dict(row) if row else None
+
+
+    async def download_paths(self) -> list[tuple[int, str]]:
+        rows = await self.db.fetchall("SELECT id, saved_path FROM downloads")
+        return [(r["id"], r["saved_path"]) for r in rows]
+
+
+    async def requeue_download(self, download_id: int) -> int | None:
+        """Remove a download record (its file is gone) and queue the message
+        again, atomically. Returns the new job id, or None if not possible."""
+        async with self.db.transaction() as conn:
+            rows = await conn.execute_fetchall("SELECT * FROM downloads WHERE id = ?", (download_id,))
+            if not rows:
+                return None
+            d = dict(rows[0])
+            await conn.execute("DELETE FROM downloads WHERE id = ?", (download_id,))
+            now = iso()
+            try:
+                cur = await conn.execute(
+                    "INSERT INTO jobs(chat_id, chat_title, message_id, grouped_id, media_unique_id, "
+                    "media_kind, file_name, file_size, message_date, source, status, attempts, priority, "
+                    "created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?, 'redownload', 'pending', 0, 0, ?, ?)",
+                    (d["chat_id"], d["chat_title"], d["message_id"], d["grouped_id"], d["media_unique_id"],
+                     d["media_kind"], d["file_name"], d["file_size"], d["message_date"], now, now))
+            except sqlite3.IntegrityError:
+                raise DuplicateDownload("already queued") from None
+            return cur.lastrowid

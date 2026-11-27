@@ -65,7 +65,7 @@ class SecurityHeadersMiddleware:
 
 
 def create_app(core: "App") -> FastAPI:
-    from .routes import auth, dashboard, monitors, settings
+    from .routes import auth, dashboard, history, logs, monitors, settings
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     app.state.core = core
@@ -76,7 +76,7 @@ def create_app(core: "App") -> FastAPI:
     app.add_middleware(SecurityHeadersMiddleware)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-    for module in (auth, dashboard, monitors, settings):
+    for module in (auth, dashboard, monitors, settings, history, logs):
         app.include_router(module.router)
 
     @app.exception_handler(LoginRequired)

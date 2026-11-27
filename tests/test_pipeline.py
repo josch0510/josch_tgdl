@@ -127,3 +127,13 @@ async def test_settings_validation(settings, base_dir: Path) -> None:
     s2 = SettingsService(settings.cfg, settings.repo)
     await s2.load()
     assert s2.get("concurrency") == 5
+
+
+async def test_generated_photo_name_uses_local_timezone(cfg, repo, settings, base_dir: Path) -> None:
+    from datetime import datetime, timezone
+    pipe = Pipeline(cfg, repo, settings)  # default timezone Asia/Taipei (UTC+8)
+    msg = make_message(3, kind="photo", date=datetime(2026, 1, 1, 17, 30, 5, tzinfo=timezone.utc))
+    jid, _ = await pipe.consider(chat_id=-1, chat_title="C", message=msg, source="live", monitor=None)
+    path = await pipe.execute(FakeClient(), await repo.get_job(jid), msg)
+    assert path.parent.name == "2026-01-02"
+    assert path.name == "3_photo_20260102_013005.jpg"

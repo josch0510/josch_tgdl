@@ -21,6 +21,16 @@ class MediaInfo:
     file_name: str
     file_size: int | None
     mime_type: str | None
+    generated_name: bool = False  # True: Telegram gave no file name
+
+    def local_name(self, date: datetime, tz: Any) -> str:
+        """For generated names, use the message time in the configured
+        timezone (consistent with the date folders)."""
+        if not self.generated_name:
+            return self.file_name
+        stamp = (date if date.tzinfo else date.replace(tzinfo=timezone.utc)).astimezone(tz)
+        return f"{self.kind}_{stamp.strftime('%Y%m%d_%H%M%S')}.{self.ext}" if self.ext else \
+            f"{self.kind}_{stamp.strftime('%Y%m%d_%H%M%S')}"
 
     @property
     def ext(self) -> str:
@@ -70,9 +80,11 @@ def extract_media(message: Any) -> MediaInfo | None:
         unique_id = f"doc:{message.document.id}"
         size = getattr(message.document, "size", size)
 
+    generated = not name
     if not name:
         date: datetime = getattr(message, "date", None) or datetime.now(timezone.utc)
         ext = (getattr(f, "ext", None) if f is not None else None) or _default_ext(kind, mime)
         name = f"{kind}_{date.strftime('%Y%m%d_%H%M%S')}{ext}"
     return MediaInfo(kind=kind, unique_id=unique_id, file_name=name,
-                     file_size=int(size) if size is not None else None, mime_type=mime)
+                     file_size=int(size) if size is not None else None, mime_type=mime,
+                     generated_name=generated)

@@ -8,6 +8,7 @@ import contextlib
 import logging
 import os
 import signal
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -76,6 +77,23 @@ class App:
 
     def flood_status(self) -> list[dict[str, Any]]:
         return [self.download_gate.status(), self.api_gate.status()]
+
+    def forward_logs(self) -> Callable[[], None]:
+        """Publish new log records as 'log' events (log viewer live mode).
+        Returns a function that detaches the listener."""
+        from .logging_setup import ring_buffer
+
+        loop = asyncio.get_running_loop()
+        owner = threading.get_ident()
+
+        def listener(entry: dict[str, Any]) -> None:
+            if threading.get_ident() == owner:
+                self.bus.publish("log", level=entry["level"])
+            else:  # logging from another thread
+                loop.call_soon_threadsafe(lambda: self.bus.publish("log", level=entry["level"]))
+
+        ring_buffer.listeners.append(listener)
+        return lambda: ring_buffer.listeners.remove(listener) if listener in ring_buffer.listeners else None
 
 
 async def remove_stale_parts(cfg: AppConfig, parts: list[str]) -> int:
@@ -146,6 +164,7 @@ async def run_server(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> 
     client = build_client(cfg, long_running=True)
     db, repo, settings = await open_storage(cfg)
     app: App | None = None
+    detach_logs: Callable[[], None] | None = None
     extra_tasks: list[asyncio.Task[Any]] = []
     try:
         print(t("cli.serve.connecting"))
@@ -165,6 +184,7 @@ async def run_server(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> 
         app.monitors.attach()
         await warm_entity_cache(app)
         app.pool.start()
+        detach_logs = app.forward_logs()
         extra_tasks.append(asyncio.create_task(monitor_resync(app), name="monitor-resync"))
 
         from .web.server import WebBindError, start_web
@@ -215,6 +235,8 @@ async def run_server(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> 
     finally:
         if app is not None:
             await shutdown(app)
+            if detach_logs is not None:
+                detach_logs()
         for task in extra_tasks:
             task.cancel()
         await asyncio.gather(*extra_tasks, return_exceptions=True)

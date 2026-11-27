@@ -95,12 +95,14 @@ def safe_next(value: str | None) -> str:
     return value
 
 
-def flash_message(request: Request) -> tuple[str, str] | None:
+def flash_message(request: Request) -> tuple[str, str, dict[str, Any]] | None:
     tr = get_translator()
+    n = request.query_params.get("n", "")
+    params = {"n": int(n)} if n.isdigit() else {}
     for kind in ("ok", "err"):
         key = request.query_params.get(kind)
         if key and tr.has(f"flash.{key}"):
-            return kind, f"flash.{key}"
+            return kind, f"flash.{key}", params
     return None
 
 
