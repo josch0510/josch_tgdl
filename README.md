@@ -118,9 +118,15 @@ stored only after the rename.
   *failed* (retry it from History). A deleted message fails immediately.
 - **Albums**: each item is its own job; missing album items are fetched
   automatically.
-- **Ctrl+C**: stop accepting jobs, interrupt running downloads, delete their
-  `.part` files and put them back in the queue. Press twice to force quit.
-  After a crash, leftover `.part` files are removed on the next start.
+- **Ctrl+C**: stop accepting jobs, interrupt running downloads and put them
+  back in the queue. Press twice to force quit.
+- **Resume** (Settings → *Resume interrupted downloads*, on by default): after
+  Ctrl+C, a crash, a network error or a FloodWait, the `.part` file is kept and
+  the download continues where it stopped (from the last 512 KB boundary, after
+  checking it is still the same Telegram file and not larger than expected).
+  Photos and files of unknown size always restart. When turned off, unfinished
+  `.part` files are deleted (also any left from earlier runs, at the next start)
+  and downloads restart from zero. A job that finally fails drops its `.part`.
 - **Telegram disconnects**: reconnects automatically; messages posted while
   offline are caught up.
 
@@ -284,8 +290,9 @@ ssh -N -L 8080:127.0.0.1:8080 您的帳號@debian主機
 - 遇到 FloodWait 時，進行中的下載會先完成，之後暫停到 Telegram 要求的時間結束
 - 網路或伺服器錯誤會在 5、10、20 秒後重試，三次都失敗就標記為失敗，可到「下載紀錄」重試
 - 相簿的每個項目都是獨立的工作，缺漏的項目會自動補抓
-- Ctrl+C 會停止接收新工作、中斷進行中的下載、刪除 `.part` 並放回佇列；連按兩次可強制結束
-- 異常中斷後，下次啟動時會清掉殘留的 `.part`
+- Ctrl+C 會停止接收新工作、中斷進行中的下載並放回佇列；連按兩次可強制結束
+- **續傳**（設定頁「續傳中斷的下載」，預設開啟）：停止、異常中斷、網路錯誤或 FloodWait 時保留 `.part`，之後確認仍是同一個 Telegram 檔案且大小合理，就從最後一個 512 KB 邊界繼續下載。相片與大小不明的檔案一律重新下載
+- 關閉續傳時，未完成的 `.part` 會被刪除（先前保留的也會在下次啟動時清除），並從頭下載；最終失敗的工作也會刪除其 `.part`
 - 與 Telegram 斷線時會自動重連，並補收離線期間的訊息
 
 ### 疑難排解

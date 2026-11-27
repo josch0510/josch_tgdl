@@ -126,6 +126,7 @@ async def test_flood_gate_blocks_new_claims(app) -> None:
 
 
 async def test_graceful_stop_requeues_and_removes_part(app, base_dir: Path) -> None:
+    await app.settings.update({"resume_downloads": False})
     app.client.gate.clear()
     jid, _ = await submit(app, -1, make_message(1))
     app.pool.start()

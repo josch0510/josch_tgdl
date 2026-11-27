@@ -255,17 +255,34 @@ class Repository:
             (status, error, 1 if count_attempt else 0, iso(), job_id),
         )
 
-    async def reset_running_jobs(self) -> list[str]:
+    async def reset_running_jobs(self, *, keep_parts: bool = False) -> list[str]:
         """After a crash/restart, running jobs go back to pending (the
-        interrupted attempt is not counted). Returns leftover .part paths."""
+        interrupted attempt is not counted).
+
+        With ``keep_parts`` (resume enabled) the .part paths stay attached
+        to their jobs and nothing is returned; otherwise the paths are
+        detached and returned so the caller can delete the files."""
+        async with self.db.transaction() as conn:
+            parts: list[str] = []
+            if not keep_parts:
+                rows = await conn.execute_fetchall(
+                    "SELECT part_path FROM jobs WHERE status = 'running' AND part_path IS NOT NULL")
+                parts = [r[0] for r in rows]
+            await conn.execute(
+                "UPDATE jobs SET status = 'pending', "
+                "part_path = CASE WHEN ? THEN part_path ELSE NULL END, "
+                "attempts = MAX(attempts - 1, 0), updated_at = ? WHERE status = 'running'",
+                (1 if keep_parts else 0, iso()))
+        return parts
+
+    async def detach_all_parts(self) -> list[str]:
+        """Resume disabled: detach every remembered .part (from any job
+        status) and return the paths so the caller can delete them."""
         async with self.db.transaction() as conn:
             rows = await conn.execute_fetchall(
-                "SELECT part_path FROM jobs WHERE status = 'running' AND part_path IS NOT NULL")
-            parts = [r[0] for r in rows]
-            await conn.execute(
-                "UPDATE jobs SET status = 'pending', part_path = NULL, "
-                "attempts = MAX(attempts - 1, 0), updated_at = ? WHERE status = 'running'", (iso(),))
-        return parts
+                "SELECT part_path FROM jobs WHERE part_path IS NOT NULL")
+            await conn.execute("UPDATE jobs SET part_path = NULL WHERE part_path IS NOT NULL")
+        return [r[0] for r in rows]
 
     async def claim_job(self) -> dict[str, Any] | None:
         """Atomically take the next runnable pending job (counts an attempt)."""
@@ -279,17 +296,20 @@ class Repository:
         )
         return dict(row) if row else None
 
-    async def release_job(self, job_id: int) -> None:
+    async def release_job(self, job_id: int, *, keep_part: bool = False) -> None:
         """Give a running job back to the queue without counting the attempt
-        (shutdown, FloodWait)."""
+        (shutdown, FloodWait). ``keep_part``: leave the .part for resuming."""
         await self.db.execute(
-            "UPDATE jobs SET status = 'pending', part_path = NULL, attempts = MAX(attempts - 1, 0), "
-            "updated_at = ? WHERE id = ? AND status = 'running'", (iso(), job_id))
+            "UPDATE jobs SET status = 'pending', part_path = CASE WHEN ? THEN part_path ELSE NULL END, "
+            "attempts = MAX(attempts - 1, 0), updated_at = ? WHERE id = ? AND status = 'running'",
+            (1 if keep_part else 0, iso(), job_id))
 
     async def schedule_retry(self, job_id: int, not_before: datetime, error: str) -> None:
+        # part_path is kept: the pipeline decides on the next attempt whether
+        # the .part can be resumed (and deletes it if not).
         await self.db.execute(
-            "UPDATE jobs SET status = 'pending', not_before = ?, last_error = ?, part_path = NULL, "
-            "updated_at = ? WHERE id = ?", (iso(not_before), error, iso(), job_id))
+            "UPDATE jobs SET status = 'pending', not_before = ?, last_error = ?, updated_at = ? "
+            "WHERE id = ?", (iso(not_before), error, iso(), job_id))
 
     async def set_part_path(self, job_id: int, part_path: str | None) -> None:
         await self.db.execute("UPDATE jobs SET part_path = ? WHERE id = ?", (part_path, job_id))

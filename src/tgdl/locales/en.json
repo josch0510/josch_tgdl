@@ -272,5 +272,7 @@
   "flash.redownload_queued": "Queued for download again.",
   "flash.missing_requeued": "{n} missing file(s) queued for download.",
   "flash.file_exists": "The file still exists; nothing to do.",
-  "cli.serve.all_interfaces": "Listening on all interfaces: open http://SERVER-IP:{port}/ (IP addresses always work). Host names allowed: {hosts}. Add other names to ALLOWED_HOSTS in .env."
+  "cli.serve.all_interfaces": "Listening on all interfaces: open http://SERVER-IP:{port}/ (IP addresses always work). Host names allowed: {hosts}. Add other names to ALLOWED_HOSTS in .env.",
+  "settings.field_resume_downloads": "Resume interrupted downloads",
+  "settings.resume_hint": "When tgdl is stopped, crashes, or hits a network error or FloodWait, unfinished .part files are kept and continued later (the last 512 KB is fetched again). Photos and files of unknown size always restart. Turned off: unfinished files are deleted and downloaded again from the start."
 }

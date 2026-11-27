@@ -15,6 +15,8 @@
       <input type="number" name="concurrency" value="{{ v.concurrency }}" min="{{ min_c }}" max="{{ max_c }}" required>
       <span class="hint">{{ t("settings.concurrency_hint") }}</span>
     </label>
+    <label class="check"><input type="checkbox" name="resume_downloads" value="1" {% if v.resume_downloads %}checked{% endif %}> {{ t("settings.field_resume_downloads") }}</label>
+    <span class="hint">{{ t("settings.resume_hint") }}</span>
     <fieldset>
       <legend>{{ t("settings.field_default_media_types") }}</legend>
       <div class="checks">

@@ -272,5 +272,7 @@
   "flash.redownload_queued": "已加入佇列，將重新下載。",
   "flash.missing_requeued": "已將 {n} 個遺失的檔案加入佇列重新下載。",
   "flash.file_exists": "檔案仍然存在，不需要重新下載。",
-  "cli.serve.all_interfaces": "正在監聽所有網路介面：請用 http://伺服器IP:{port}/ 連線（IP 位址一律可用）。允許的主機名稱：{hosts}。其他名稱請加入 .env 的 ALLOWED_HOSTS。"
+  "cli.serve.all_interfaces": "正在監聽所有網路介面：請用 http://伺服器IP:{port}/ 連線（IP 位址一律可用）。允許的主機名稱：{hosts}。其他名稱請加入 .env 的 ALLOWED_HOSTS。",
+  "settings.field_resume_downloads": "續傳中斷的下載",
+  "settings.resume_hint": "tgdl 停止、異常中斷、網路錯誤或遇到 FloodWait 時，保留未完成的 .part 檔，之後從中斷處繼續（最後 512 KB 會重新下載）。相片與大小不明的檔案一律重新下載。關閉時，未完成的檔案會被刪除並從頭下載。"
 }

@@ -151,8 +151,11 @@ async def shutdown(app: App) -> None:
     await app.monitors.detach()
     await app.backfill.stop_all()
     await app.pool.stop()
-    removed = cleanup_parts()
-    log_event(log, logging.INFO, "shutdown", f"workers stopped, removed {removed} .part file(s)")
+    if app.settings.get("resume_downloads"):
+        log_event(log, logging.INFO, "shutdown", "workers stopped, partial downloads kept for resume")
+    else:
+        removed = cleanup_parts()
+        log_event(log, logging.INFO, "shutdown", f"workers stopped, removed {removed} .part file(s)")
 
 
 async def run_server(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> int:
@@ -176,9 +179,13 @@ async def run_server(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> 
 
         app = App.build(cfg, client, db, repo, settings)
         app.me_name = utils.get_display_name(me)
-        stale = await repo.reset_running_jobs()
+        resume = bool(settings.get("resume_downloads"))
+        stale = await repo.reset_running_jobs(keep_parts=resume)
+        if not resume:  # also drop parts kept while resume was enabled
+            stale += await repo.detach_all_parts()
         if stale:
-            await remove_stale_parts(cfg, stale)
+            removed = await remove_stale_parts(cfg, stale)
+            log_event(log, logging.INFO, "startup_cleanup", f"removed {removed} stale .part file(s)")
         await repo.fail_stale_backfills()
         await app.monitors.load()
         app.monitors.attach()

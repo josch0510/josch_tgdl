@@ -61,6 +61,9 @@ class FakeTelegram:
         self.gate.set()
         self.dialogs: list[Any] = []
         self.dialog_calls = 0
+        self.fail_after_half: dict[int, list[BaseException]] = {}  # msg id -> errors
+        self.resume_offsets: list[int] = []
+        self.doc_to_msg: dict[int, int] = {}
 
     def add_dialog(self, chat_id: int, name: str, *, group: bool = False) -> None:
         self.dialogs.append(SimpleNamespace(id=chat_id, name=name, is_channel=True,
@@ -68,7 +71,23 @@ class FakeTelegram:
 
     def add(self, chat_id: int, message: Any) -> Any:
         self.messages[(chat_id, message.id)] = message
+        if getattr(message, "document", None) is not None:
+            self.doc_to_msg[message.document.id] = message.id
         return message
+
+    async def iter_download(self, document: Any, *, offset: int = 0, request_size: int = 1024,
+                            file_size: Any = None):
+        """Telethon-like ranged download (used for resuming)."""
+        self.resume_offsets.append(offset)
+        assert offset % request_size == 0, "offset must be aligned"
+        msg_id = self.doc_to_msg.get(document.id)
+        data = self.payload[offset:]
+        for i in range(0, len(data), request_size):
+            plan = self.fail_after_half.get(msg_id) if i > 0 else None
+            if plan:
+                raise plan.pop(0)
+            await self.gate.wait()
+            yield data[i:i + request_size]
 
     async def get_messages(self, chat_id: int, ids: Any) -> Any:
         if isinstance(ids, list):
@@ -103,6 +122,10 @@ class FakeTelegram:
             file.write(self.payload[:half])
             if progress_callback:
                 progress_callback(half, len(self.payload))
+            late = self.fail_after_half.get(message.id)
+            if late:
+                file.flush()
+                raise late.pop(0)
             await self.gate.wait()
             if self.delay:
                 await asyncio.sleep(self.delay)

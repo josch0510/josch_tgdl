@@ -11,12 +11,12 @@ from ..config import AppConfig
 from ..core.categories import classify
 from ..core.filters import ChatRules, filter_reason
 from ..core.media import MediaInfo, extract_media
-from ..core.paths import PathContext, render_path, resolve_allowed
+from ..core.paths import PathContext, PathNotAllowed, render_path, resolve_allowed
 from ..logging_setup import log_event
 from ..settings import SettingsService
 from ..storage.db import parse_iso
 from ..storage.repo import DuplicateDownload, NewJob, Repository
-from .download import ProgressCallback, download_to_file
+from .download import ProgressCallback, SizeMismatch, download_to_file
 
 log = logging.getLogger("tgdl.downloader")
 
@@ -72,6 +72,25 @@ class Pipeline:
         # Final guard: the rendered file path must stay inside an allowed root.
         return category, resolve_allowed(path, self.cfg.allowed_base_dirs)
 
+    def existing_part(self, job: dict[str, Any]) -> Path | None:
+        """The job's recorded .part file, if it is a real .part inside an
+        allowed root (the DB value is never trusted blindly)."""
+        raw = job.get("part_path")
+        if not raw or not str(raw).endswith(".part"):
+            return None
+        try:
+            p = resolve_allowed(raw, self.cfg.allowed_base_dirs)
+        except PathNotAllowed:
+            return None
+        return p if p.is_file() else None
+
+    async def discard_part(self, job: dict[str, Any]) -> None:
+        part = self.existing_part(job)
+        if part is not None:
+            part.unlink(missing_ok=True)
+        if job.get("part_path"):
+            await self.repo.set_part_path(job["id"], None)
+
     async def execute(self, client: Any, job: dict[str, Any], message: Any, *,
                       progress: ProgressCallback | None = None) -> Path | None:
         """Download one job that the caller already marked ``running``.
@@ -84,21 +103,42 @@ class Pipeline:
         dup = await self.repo.find_duplicate(job["chat_id"], job["message_id"], info.unique_id,
                                              include_queue=False)
         if dup:
+            await self.discard_part(job)
             await self.repo.set_job_status(job["id"], "skipped", error=dup)
             log_event(log, logging.INFO, "skip", chat=job["chat_id"], msg_id=job["message_id"], reason=dup)
             return None
 
         rules = self.settings.rules_for(await self.repo.get_monitor(job["chat_id"]))
         category, target = self.target_for(job, info, rules)
+        expected = info.file_size if info.kind != "photo" else None
+
+        resume_enabled = bool(self.settings.get("resume_downloads"))
+        resume_from = self.existing_part(job)
+        if resume_from is not None and not (
+                resume_enabled and expected and getattr(message, "document", None) is not None
+                and info.unique_id == job["media_unique_id"]):
+            # resume off, photo, unknown size, or the message now has other media
+            await self.discard_part(job)
+            resume_from = None
+
         log_event(log, logging.INFO, "download_start", f"file={info.file_name} size={info.file_size}",
                   chat=job["chat_id"], msg_id=job["message_id"])
 
-        expected = info.file_size if info.kind != "photo" else None
         async def remember_part(part: Path) -> None:
             await self.repo.set_part_path(job["id"], str(part))
 
+        def keep_part(exc: BaseException) -> bool:
+            # Keep progress for interruptions; a size mismatch means the data is bad.
+            return bool(self.settings.get("resume_downloads")) and not isinstance(exc, SizeMismatch)
+
+        def on_resume(offset: int) -> None:
+            log_event(log, logging.INFO, "download_resume", f"offset={offset} size={expected}",
+                      chat=job["chat_id"], msg_id=job["message_id"])
+
         final, size = await download_to_file(client, message, target, expected_size=expected,
-                                             progress=progress, on_part=remember_part)
+                                             progress=progress, on_part=remember_part,
+                                             resume_from=resume_from, keep_part=keep_part,
+                                             on_resume=on_resume)
         try:
             await self.repo.record_download(job, category=category, file_name=final.name,
                                             file_size=size, saved_path=str(final))

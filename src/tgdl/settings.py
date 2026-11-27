@@ -45,6 +45,7 @@ def defaults(cfg: AppConfig) -> dict[str, Any]:
         "default_media_types": list(DEFAULT_MEDIA_TYPES),
         "default_prefix": "",
         "language": "zh-TW",
+        "resume_downloads": True,
     }
 
 
@@ -78,6 +79,14 @@ def validate_setting(cfg: AppConfig, key: str, value: Any) -> Any:
         if key == "default_prefix":
             validate_prefix_template(str(value))
             return str(value)
+        if key == "resume_downloads":
+            if isinstance(value, bool):
+                return value
+            if str(value).lower() in ("1", "true", "on", "yes"):
+                return True
+            if str(value).lower() in ("0", "false", "off", "no", ""):
+                return False
+            raise SettingsError(key, "settings.invalid")
         if key == "language":
             if value not in SUPPORTED:
                 raise SettingsError(key, "settings.bad_language")

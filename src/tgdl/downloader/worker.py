@@ -156,6 +156,9 @@ class WorkerPool:
             "flood": self.gate.status(),
         }
 
+    def _resume(self) -> bool:
+        return bool(self.settings.get("resume_downloads"))
+
     # ------------------------------------------------------------ worker
     def _should_stop(self, wid: int) -> bool:
         return self._stopping or wid in self._retire
@@ -211,11 +214,11 @@ class WorkerPool:
             outcome = "done" if path else "skipped"
         except FLOOD_ERRORS as exc:
             outcome = "requeued"
-            await self.repo.release_job(jid)
+            await self.repo.release_job(jid, keep_part=self._resume())
             self.gate.trigger(getattr(exc, "seconds", 60), chat=chat_id, msg_id=msg_id)
         except asyncio.CancelledError:
             outcome = "requeued"
-            await asyncio.shield(self.repo.release_job(jid))
+            await asyncio.shield(self.repo.release_job(jid, keep_part=self._resume()))
             raise
         except Exception as exc:  # noqa: BLE001 - classified below
             reason = type(exc).__name__
@@ -229,6 +232,10 @@ class WorkerPool:
                           f"attempt={attempts} retry_in={delay:.0f}s error={exc!r}",
                           chat=chat_id, msg_id=msg_id, reason=reason)
             else:
+                # A failed job never resumes: drop its partial file.
+                latest = await self.repo.get_job(jid)
+                if latest is not None:
+                    await self.pipeline.discard_part(latest)
                 await self.repo.set_job_status(jid, "failed", error=reason)
                 log_event(log, logging.ERROR, "download_failed", f"attempts={attempts} error={exc!r}",
                           chat=chat_id, msg_id=msg_id, reason=reason)
