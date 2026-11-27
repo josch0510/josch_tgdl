@@ -178,7 +178,7 @@
   "settings.field_language": "Default language",
   "settings.concurrency_hint": "1–10. Applied immediately; running downloads are not interrupted.",
   "settings.template_vars": "Must start with {base_dir}/ and end with a segment containing {filename}. Variables:",
-  "settings.category_order": "Order: Telegram media type first, then file extension, then MIME type; otherwise Others.",
+  "settings.category_order": "Order: Telegram media type first, then file extension, then MIME type; otherwise Others. Split archive parts (.7z.001, .zip.002, .z01, .r00) use the category of their archive format (7z, zip, rar), so no extra entries are needed.",
   "settings.by_kind": "By Telegram media type",
   "settings.by_extension": "By file extension (comma separated)",
   "settings.by_mime": "By MIME type prefix",

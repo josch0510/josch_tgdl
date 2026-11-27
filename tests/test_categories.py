@@ -67,3 +67,22 @@ def test_extensions_normalized() -> None:
 def test_invalid_mapping(bad) -> None:
     with pytest.raises(ValueError):
         validate_category_map(bad)
+
+
+@pytest.mark.parametrize("name, expected", [
+    ("movie.7z.001", "Archives"), ("movie.7z.002", "Archives"), ("movie.7Z.010", "Archives"),
+    ("data.zip.001", "Archives"), ("data.z01", "Archives"), ("data.Z99", "Archives"),
+    ("old.r00", "Archives"), ("old.r15", "Archives"), ("set.part1.rar", "Archives"),
+    ("backup.tar.gz.003", "Archives"),
+    ("clip.mp4.001", "Videos"),            # split video follows the inner format
+    ("x.001", "Others"), ("x.1.2", "Others"), ("zebra.zoo", "Others"), ("r2d2.robot", "Others"),
+])
+def test_split_archives(name, expected) -> None:
+    assert classify("document", "application/octet-stream", name) == expected
+
+
+def test_explicit_numeric_extension_wins() -> None:
+    m = default_category_map()
+    m["extensions"]["Others"].append("001")
+    m = validate_category_map(m)
+    assert classify("document", None, "movie.7z.001", m) == "Others"

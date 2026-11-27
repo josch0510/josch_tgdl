@@ -93,7 +93,9 @@ photos without a filename use the same timezone. The prefix may use
 
 Categories: Photos, Videos, Audio, Voice, Documents, Archives, Others —
 decided by Telegram media type first, then file extension, then MIME type
-(all editable in Settings).
+(all editable in Settings). Split archive parts — `.7z.001`, `.zip.002`,
+`.z01`, `.r00` — are classified by their archive format (7z, zip, rar), so they
+land in Archives without extra configuration.
 
 Every path component is sanitized (no `/`, `..`, control characters; max 255
 bytes in UTF-8 without breaking CJK characters), and the final path is checked
@@ -271,6 +273,7 @@ ssh -N -L 8080:127.0.0.1:8080 您的帳號@debian主機
 
 - 日期是訊息時間換算成設定時區後的日期（預設 `Asia/Taipei`）；沒有檔名的相片，自動產生的檔名也使用同一個時區
 - 分類判斷順序：先看 Telegram 媒體類型，再看副檔名，最後看 MIME 類型，都不符合則歸為 Others；對應規則可在「設定」頁修改
+- 壓縮分割檔（`.7z.001`、`.zip.002`、`.z01`、`.r00`）會依原本的壓縮格式（7z、zip、rar）分類，自動歸入 Archives，不需要另外設定副檔名
 - 每一段路徑都會經過清理：移除 `/`、`..` 與控制字元，並以 UTF-8 bytes 截斷到 255，不會切壞中文字元
 - 最終路徑會在解析 symlink 之後確認位於 `ALLOWED_BASE_DIRS` 之下
 - 下載時先寫入 `.part`，確認大小正確後才改名，之後才寫入下載紀錄；已存在的檔案不會被覆蓋，會自動加上 `_1`、`_2`

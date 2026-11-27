@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import re
 from typing import Any
 
 CATEGORIES: tuple[str, ...] = (
@@ -64,15 +65,45 @@ def file_ext(filename: str | None) -> str:
     return filename.rsplit(".", 1)[1].strip().lower()
 
 
+_NUMBERED = re.compile(r"^\d{1,4}$")          # .7z.001, .zip.002, .rar.003
+_SPLIT_ALIASES = (
+    (re.compile(r"^z\d{2,3}$"), "zip"),       # .z01, .z02 (split zip)
+    (re.compile(r"^r\d{2,3}$"), "rar"),       # .r00, .r01 (old-style split rar)
+)
+
+
+def ext_candidates(filename: str | None) -> list[str]:
+    """Extensions to look up, most specific first.
+
+    Split archives are mapped to the underlying format, so they land in the
+    same category as the complete archive:
+    ``a.7z.001`` -> ["001", "7z"], ``a.z01`` -> ["z01", "zip"],
+    ``a.r00`` -> ["r00", "rar"]. An extension listed explicitly in the
+    mapping (e.g. "001") still takes precedence.
+    """
+    ext = file_ext(filename)
+    if not ext:
+        return []
+    out = [ext]
+    if _NUMBERED.match(ext):
+        inner = file_ext((filename or "").rsplit(".", 1)[0])
+        if inner and not _NUMBERED.match(inner):
+            out.append(inner)
+    for pattern, alias in _SPLIT_ALIASES:
+        if pattern.match(ext):
+            out.append(alias)
+    return out
+
+
 def classify(kind: str, mime_type: str | None, filename: str | None,
              mapping: CategoryMap | None = None) -> str:
-    """Classify by Telegram media kind, then file extension, then MIME type."""
+    """Classify by Telegram media kind, then file extension (split archive
+    parts resolve to their archive format), then MIME type."""
     m = mapping or DEFAULT_CATEGORY_MAP
     kinds: dict[str, str] = m.get("kinds", {})
     if kind != "document" and kind in kinds:
         return kinds[kind]
-    ext = file_ext(filename)
-    if ext:
+    for ext in ext_candidates(filename):
         for category, exts in m.get("extensions", {}).items():
             if ext in exts:
                 return category

@@ -178,7 +178,7 @@
   "settings.field_language": "預設語言",
   "settings.concurrency_hint": "1 到 10，立即生效，不會中斷進行中的下載。",
   "settings.template_vars": "必須以 {base_dir}/ 開頭，最後一段需包含 {filename}。可用變數：",
-  "settings.category_order": "判斷順序：先依 Telegram 媒體類型，再依副檔名，再依 MIME 類型，都不符合則歸為 Others。",
+  "settings.category_order": "判斷順序：先依 Telegram 媒體類型，再依副檔名，再依 MIME 類型，都不符合則歸為 Others。壓縮分割檔（.7z.001、.zip.002、.z01、.r00）會套用原本壓縮格式（7z、zip、rar）的分類，不需要另外設定。",
   "settings.by_kind": "依 Telegram 媒體類型",
   "settings.by_extension": "依副檔名（以逗號分隔）",
   "settings.by_mime": "依 MIME 類型前綴",
