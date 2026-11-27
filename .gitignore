@@ -1,0 +1,17 @@
+# secrets & runtime state
+.env
+*.session
+*.session-journal
+*.db
+*.db-wal
+*.db-shm
+data/
+logs/
+# python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/

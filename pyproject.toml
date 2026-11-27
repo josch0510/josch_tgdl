@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tgdl"
+version = "0.1.0"
+description = "Telegram media downloader with a web management UI"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "Telethon==1.46.0",
+    "cryptg==0.6.1",
+    "fastapi==0.165.0",
+    "uvicorn==0.54.0",
+    "Jinja2==3.1.6",
+    "python-multipart==0.0.34",
+    "aiosqlite==0.22.1",
+    "argon2-cffi==25.1.0",
+    "python-dotenv==1.2.4",
+    "sse-starlette==3.7.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.2.0",
+    "pytest-asyncio==1.5.0",
+    "httpx==0.29.0",
+]
+
+[project.scripts]
+tgdl = "tgdl.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+tgdl = [
+    "locales/*.json",
+    "storage/schema.sql",
+    "web/templates/*.html",
+    "web/templates/**/*.html",
+    "web/static/*",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
