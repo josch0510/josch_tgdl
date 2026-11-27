@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ t("nav.settings") }}{% endblock %}
+{% block content %}
+<h1>{{ t("nav.settings") }}</h1>
+{% if error %}<div class="banner banner-err" role="alert">{{ t("settings.field_" ~ error[0]) }}: {{ t(error[1]) }}{% if error[2] %} <code>{{ error[2] }}</code>{% endif %}</div>{% endif %}
+<form method="post" action="/settings" class="stack">{{ csrf() }}
+  <section class="card stack">
+    <h2>{{ t("settings.downloads") }}</h2>
+    <label>{{ t("settings.field_default_dir") }}
+      <input type="text" name="default_dir" value="{{ v.default_dir }}" required maxlength="4096">
+      <span class="hint">{{ t("monitor.download_dir_hint") }} {{ allowed_dirs | join(", ") }}</span>
+    </label>
+    <label>{{ t("settings.field_concurrency") }}
+      <input type="number" name="concurrency" value="{{ v.concurrency }}" min="{{ min_c }}" max="{{ max_c }}" required>
+      <span class="hint">{{ t("settings.concurrency_hint") }}</span>
+    </label>
+    <fieldset>
+      <legend>{{ t("settings.field_default_media_types") }}</legend>
+      <div class="checks">
+      {% for k in kinds %}
+        <label class="check"><input type="checkbox" name="default_media_types" value="{{ k }}" {% if k in v.default_media_types %}checked{% endif %}> {{ t("kind." ~ k) }}</label>
+      {% endfor %}
+      </div>
+    </fieldset>
+  </section>
+
+  <section class="card stack">
+    <h2>{{ t("settings.organization") }}</h2>
+    <label>{{ t("settings.field_path_template") }}
+      <input type="text" name="path_template" value="{{ v.path_template }}" required maxlength="500" class="mono">
+      <span class="hint">{{ t("settings.template_vars") }} <code>{base_dir} {chat_name} {chat_id} {category} {YYYY} {MM} {DD} {YYYY-MM-DD} {msg_id} {grouped_id} {prefix} {filename}</code></span>
+    </label>
+    <label>{{ t("settings.field_default_prefix") }}
+      <input type="text" name="default_prefix" value="{{ v.default_prefix }}" maxlength="200" class="mono">
+      <span class="hint">{{ t("settings.prefix_hint") }}</span>
+    </label>
+    <label>{{ t("settings.field_timezone") }}
+      <input type="text" name="timezone" value="{{ v.timezone }}" list="tz-list" required maxlength="64">
+      <datalist id="tz-list">{% for z in timezones %}<option value="{{ z }}">{% endfor %}</datalist>
+    </label>
+  </section>
+
+  <section class="card stack">
+    <h2>{{ t("settings.field_category_map") }}</h2>
+    <p class="hint">{{ t("settings.category_order") }}</p>
+    <h3>{{ t("settings.by_kind") }}</h3>
+    <div class="grid3">
+    {% for k in kind_options %}
+      <label>{{ t("kind." ~ k) }}
+        <select name="kind_{{ k }}">
+          {% for c in categories %}<option value="{{ c }}" {% if v.kinds.get(k) == c %}selected{% endif %}>{{ t("cat." ~ c) }}</option>{% endfor %}
+        </select>
+      </label>
+    {% endfor %}
+    </div>
+    <h3>{{ t("settings.by_extension") }}</h3>
+    {% for c in categories %}
+      <label>{{ t("cat." ~ c) }}<input type="text" name="ext_{{ c }}" value="{{ v.extensions[c] }}" class="mono" maxlength="2000"></label>
+    {% endfor %}
+    <h3>{{ t("settings.by_mime") }}</h3>
+    <label><span class="hint">{{ t("settings.mime_hint") }}</span>
+      <textarea name="mime" rows="8" class="mono" maxlength="5000">{{ v.mime }}</textarea></label>
+  </section>
+
+  <section class="card stack">
+    <h2>{{ t("settings.interface") }}</h2>
+    <label>{{ t("settings.field_language") }}
+      <select name="language">
+        {% for l in languages %}<option value="{{ l }}" {% if v.language == l %}selected{% endif %}>{{ t("lang." ~ l) }}</option>{% endfor %}
+      </select>
+      <span class="hint">{{ t("settings.language_hint") }}</span>
+    </label>
+  </section>
+
+  <div><button type="submit" class="btn btn-primary">{{ t("common.save") }}</button></div>
+</form>
+{% endblock %}

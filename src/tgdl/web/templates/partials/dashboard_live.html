@@ -1,0 +1,66 @@
+{% from "_macros.html" import flood_banner %}
+{{ flood_banner(d.floods, t) }}
+<section class="stats">
+  <div class="stat"><div class="stat-label">{{ t("dash.today_files") }}</div><div class="stat-value">{{ d.today_count }}</div></div>
+  <div class="stat"><div class="stat-label">{{ t("dash.today_size") }}</div><div class="stat-value">{{ d.today_bytes | size }}</div></div>
+  <div class="stat"><div class="stat-label">{{ t("dash.queue") }}</div><div class="stat-value">{{ d.pending }}</div></div>
+  <div class="stat"><div class="stat-label">{{ t("dash.failed") }}</div><div class="stat-value {{ 'text-err' if d.failed else '' }}">{{ d.failed }}</div></div>
+  <div class="stat"><div class="stat-label">{{ t("dash.workers") }}</div><div class="stat-value">{{ d.pool.active | length }} / {{ d.pool.concurrency }}</div></div>
+  <div class="stat"><div class="stat-label">{{ t("dash.monitors") }}</div><div class="stat-value">{{ d.monitors_enabled }} / {{ d.monitors_total }}</div></div>
+</section>
+
+<section class="card">
+  <h2>{{ t("dash.active") }}</h2>
+  {% set paused = d.pool.flood.active %}
+  {% if d.pool.active %}
+  <table class="table">
+    <thead><tr><th>{{ t("col.chat") }}</th><th>{{ t("col.file") }}</th><th>{{ t("col.progress") }}</th><th>{{ t("col.speed") }}</th><th>{{ t("col.eta") }}</th></tr></thead>
+    <tbody>
+    {% for a in d.pool.active %}
+      <tr>
+        <td>{{ a.chat_title }}</td>
+        <td class="filename" title="{{ a.file_name }}">{{ a.file_name }}</td>
+        <td class="progress-cell">
+          <progress max="100" value="{{ a.percent }}"></progress>
+          <span class="muted">{{ a.percent }}% · {{ a.done | size }} / {{ a.total | size }}</span>
+        </td>
+        <td>{{ (a.speed | size) ~ "/s" if a.speed else "-" }}</td>
+        <td>{{ a.eta | duration if a.eta is not none else "-" }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% elif paused %}
+  <p class="muted">{{ t("dash.workers_paused") }}</p>
+  {% else %}
+  <p class="muted">{{ t("dash.idle") }}</p>
+  {% endif %}
+  {% if paused and d.pool.active %}<p class="text-warn">{{ t("dash.workers_pausing") }}</p>{% endif %}
+</section>
+
+{% if d.backfills %}
+<section class="card">
+  <h2>{{ t("dash.backfills") }}</h2>
+  <ul class="plain">
+  {% for b in d.backfills %}
+    <li>{{ b.chat_title }} ({{ b.date_from }} – {{ b.date_to }}): {{ t("backfill.progress", scanned=b.scanned, enqueued=b.enqueued) }}</li>
+  {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>{{ t("dash.per_chat") }}</h2>
+  {% if d.per_chat %}
+  <table class="table nowrap">
+    <thead><tr><th>{{ t("col.chat") }}</th><th class="num">{{ t("dash.today_files") }}</th><th class="num">{{ t("col.files_total") }}</th><th class="num">{{ t("col.size_total") }}</th><th>{{ t("col.last_download") }}</th></tr></thead>
+    <tbody>
+    {% for c in d.per_chat %}
+      <tr><td>{{ c.chat_title or c.chat_id }}</td><td class="num">{{ c.today_files }}</td><td class="num">{{ c.files }}</td><td class="num">{{ c.bytes | size }}</td><td>{{ local_dt(c.last_at) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">{{ t("dash.no_downloads") }}</p>
+  {% endif %}
+</section>

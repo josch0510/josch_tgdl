@@ -64,3 +64,13 @@ async def app(cfg, db, repo, settings, fast):
     await a.monitors.detach()
     await a.backfill.stop_all()
     await a.pool.stop()
+
+
+@pytest.fixture
+async def web(app):
+    import httpx
+
+    from tgdl.web.server import create_app
+    transport = httpx.ASGITransport(app=create_app(app), client=("127.0.0.1", 50000))
+    async with httpx.AsyncClient(transport=transport, base_url="http://localhost:8080") as c:
+        yield c

@@ -56,7 +56,7 @@ class Repository:
         row = await self.db.fetchone("SELECT password_hash FROM admin WHERE id = 1")
         return row["password_hash"] if row else None
 
-    async def set_password_hash(self, password_hash: str) -> None:
+    async def set_password_hash(self, password_hash: str, *, revoke_sessions: bool = True) -> None:
         async with self.db.transaction() as conn:
             await conn.execute(
                 "INSERT INTO admin(id, password_hash, updated_at) VALUES (1, ?, ?) "
@@ -65,7 +65,48 @@ class Repository:
                 (password_hash, iso()),
             )
             # Changing the password invalidates every web session.
-            await conn.execute("DELETE FROM web_sessions")
+            if revoke_sessions:
+                await conn.execute("DELETE FROM web_sessions")
+
+    # -------------------------------------------------------- web sessions
+    async def create_session(self, token_hash: str, csrf_token: str, expires_at: datetime,
+                             client_ip: str | None) -> None:
+        now = iso()
+        await self.db.execute(
+            "INSERT INTO web_sessions(token_hash, csrf_token, created_at, expires_at, last_seen, "
+            "client_ip) VALUES (?, ?, ?, ?, ?, ?)",
+            (token_hash, csrf_token, now, iso(expires_at), now, client_ip))
+
+    async def get_session(self, token_hash: str) -> dict[str, Any] | None:
+        row = await self.db.fetchone("SELECT * FROM web_sessions WHERE token_hash = ?", (token_hash,))
+        return dict(row) if row else None
+
+    async def touch_session(self, token_hash: str) -> None:
+        await self.db.execute("UPDATE web_sessions SET last_seen = ? WHERE token_hash = ?",
+                              (iso(), token_hash))
+
+    async def delete_session(self, token_hash: str) -> None:
+        await self.db.execute("DELETE FROM web_sessions WHERE token_hash = ?", (token_hash,))
+
+    async def purge_sessions(self, idle_before: datetime) -> None:
+        await self.db.execute("DELETE FROM web_sessions WHERE expires_at <= ? OR last_seen <= ?",
+                              (iso(), iso(idle_before)))
+
+    # ------------------------------------------------------ login failures
+    async def get_login_failure(self, scope: str) -> dict[str, Any] | None:
+        row = await self.db.fetchone("SELECT * FROM login_failures WHERE scope = ?", (scope,))
+        return dict(row) if row else None
+
+    async def save_login_failure(self, scope: str, fail_count: int, window_start: datetime,
+                                 locked_until: datetime | None) -> None:
+        await self.db.execute(
+            "INSERT INTO login_failures(scope, fail_count, window_start, locked_until) "
+            "VALUES (?, ?, ?, ?) ON CONFLICT(scope) DO UPDATE SET fail_count = excluded.fail_count, "
+            "window_start = excluded.window_start, locked_until = excluded.locked_until",
+            (scope, fail_count, iso(window_start), iso(locked_until) if locked_until else None))
+
+    async def clear_login_failure(self, scope: str) -> None:
+        await self.db.execute("DELETE FROM login_failures WHERE scope = ?", (scope,))
 
     # ------------------------------------------------------------ monitors
     @staticmethod
@@ -234,12 +275,15 @@ class Repository:
             "WHERE downloaded_at >= ?", (iso(since),))
         return (row["n"], row["total"]) if row else (0, 0)
 
-    async def per_chat_stats(self, since: datetime | None = None) -> list[dict[str, Any]]:
+    async def per_chat_stats(self, today_start: datetime) -> list[dict[str, Any]]:
         rows = await self.db.fetchall(
-            "SELECT chat_id, MAX(chat_title) AS chat_title, COUNT(*) AS files, "
-            "SUM(file_size) AS bytes, MAX(downloaded_at) AS last_at FROM downloads "
-            "WHERE downloaded_at >= ? GROUP BY chat_id ORDER BY files DESC",
-            (iso(since) if since else "",))
+            "SELECT d.chat_id, COALESCE(m.chat_title, MAX(d.chat_title)) AS chat_title, "
+            "COUNT(*) AS files, COALESCE(SUM(d.file_size), 0) AS bytes, "
+            "SUM(CASE WHEN d.downloaded_at >= ? THEN 1 ELSE 0 END) AS today_files, "
+            "MAX(d.downloaded_at) AS last_at "
+            "FROM downloads d LEFT JOIN monitors m ON m.chat_id = d.chat_id "
+            "GROUP BY d.chat_id ORDER BY last_at DESC LIMIT 50",
+            (iso(today_start),))
         return [dict(r) for r in rows]
 
     # ------------------------------------------------------------ backfill

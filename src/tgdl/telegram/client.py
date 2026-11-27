@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import getpass
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -128,3 +130,55 @@ async def resolve_chat(client: TelegramClient, ref: str) -> ChatInfo:
     else:
         entity = await client.get_entity(target)
     return ChatInfo.from_entity(entity)
+
+
+class DialogCache:
+    """Joined groups/channels, cached to avoid hammering GetDialogs
+    (which is rate limited)."""
+
+    TTL = 300.0
+
+    def __init__(self, client: Any, api_gate: Any) -> None:
+        self.client = client
+        self.api_gate = api_gate
+        self._items: list[ChatInfo] = []
+        self._at = 0.0
+        self._lock = asyncio.Lock()
+
+    @staticmethod
+    def from_dialog(d: Any) -> ChatInfo:
+        ctype = "group" if getattr(d, "is_group", False) else "channel"
+        return ChatInfo(chat_id=int(d.id), title=str(d.name or d.id), chat_type=ctype)
+
+    async def get(self, refresh: bool = False) -> list[ChatInfo]:
+        from ..downloader.flood import FLOOD_ERRORS
+
+        async with self._lock:
+            stale = time.monotonic() - self._at > self.TTL
+            if self._items and not refresh and not stale:
+                return self._items
+            if self.api_gate.active and self._items:
+                return self._items
+            try:
+                dialogs = await self.client.get_dialogs()
+            except FLOOD_ERRORS as exc:
+                self.api_gate.trigger(getattr(exc, "seconds", 60))
+                if self._items:
+                    return self._items
+                raise
+            self._items = sorted(
+                (self.from_dialog(d) for d in dialogs
+                 if getattr(d, "is_channel", False) or getattr(d, "is_group", False)),
+                key=lambda c: c.title.casefold())
+            self._at = time.monotonic()
+            return self._items
+
+    def find(self, chat_id: int) -> ChatInfo | None:
+        return next((c for c in self._items if c.chat_id == chat_id), None)
+
+    @staticmethod
+    def search(items: list[ChatInfo], query: str) -> list[ChatInfo]:
+        q = query.strip().casefold()
+        if not q:
+            return items
+        return [c for c in items if q in c.title.casefold() or q == str(c.chat_id)]

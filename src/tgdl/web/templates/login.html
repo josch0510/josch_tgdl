@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ t("login.title") }}{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h1>{{ t("login.title") }}</h1>
+  {% if error %}<div class="banner banner-err" role="alert">{{ t(error, **error_params) }}</div>{% endif %}
+  <form method="post" action="/login" class="stack">
+    <input type="hidden" name="login_csrf" value="{{ login_csrf }}">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>{{ t("login.password") }}
+      <input type="password" name="password" autocomplete="current-password" required autofocus maxlength="1024">
+    </label>
+    <button type="submit" class="btn btn-primary">{{ t("login.submit") }}</button>
+  </form>
+</section>
+{% endblock %}

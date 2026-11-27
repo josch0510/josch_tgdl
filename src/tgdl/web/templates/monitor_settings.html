@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ t("monitor.settings_title", chat=m.chat_title) }}{% endblock %}
+{% block content %}
+<p><a href="/monitors">← {{ t("nav.monitors") }}</a></p>
+<h1>{{ t("monitor.settings_title", chat=m.chat_title) }}</h1>
+{% if error %}<div class="banner banner-err" role="alert">{{ t(error) }}</div>{% endif %}
+<form method="post" action="/monitors/{{ m.chat_id }}/settings" class="card stack">{{ csrf() }}
+  <fieldset>
+    <legend>{{ t("settings.media_types") }}</legend>
+    <label class="check"><input type="checkbox" name="use_default_types" value="1" data-toggles="#types-custom" {% if v.use_default_types %}checked{% endif %}> {{ t("monitor.use_default") }}
+      <span class="muted small">({% for k in defaults.default_media_types %}{{ t("kind." ~ k) }}{{ ", " if not loop.last }}{% endfor %})</span></label>
+    <div id="types-custom" class="checks">
+      {% for k in kinds %}
+      <label class="check"><input type="checkbox" name="media_types" value="{{ k }}" {% if k in v.media_types %}checked{% endif %}> {{ t("kind." ~ k) }}</label>
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  <label>{{ t("monitor.download_dir") }}
+    <input type="text" name="download_dir" value="{{ v.download_dir }}" placeholder="{{ defaults.default_dir }}" maxlength="4096">
+    <span class="hint">{{ t("monitor.download_dir_hint") }} {{ allowed_dirs | join(", ") }}</span>
+  </label>
+
+  <fieldset>
+    <legend>{{ t("settings.prefix") }}</legend>
+    <label class="check"><input type="checkbox" name="use_default_prefix" value="1" data-toggles="#prefix-custom" {% if v.use_default_prefix %}checked{% endif %}> {{ t("monitor.use_default") }}
+      <span class="muted small mono">{{ defaults.default_prefix or "∅" }}</span></label>
+    <div id="prefix-custom">
+      <input type="text" name="filename_prefix" value="{{ v.filename_prefix }}" maxlength="200" aria-label="{{ t('settings.prefix') }}">
+      <span class="hint">{{ t("settings.prefix_hint") }}</span>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>{{ t("monitor.filters") }}</legend>
+    <div class="grid2">
+      <label>{{ t("monitor.min_mb") }}<input type="number" name="min_mb" value="{{ v.min_mb }}" min="0" step="any"></label>
+      <label>{{ t("monitor.max_mb") }}<input type="number" name="max_mb" value="{{ v.max_mb }}" min="0" step="any"></label>
+    </div>
+    <label>{{ t("monitor.keyword") }}<input type="text" name="keyword" value="{{ v.keyword }}" maxlength="200">
+      <span class="hint">{{ t("monitor.keyword_hint") }}</span></label>
+  </fieldset>
+
+  <div><button type="submit" class="btn btn-primary">{{ t("common.save") }}</button></div>
+</form>
+{% endblock %}

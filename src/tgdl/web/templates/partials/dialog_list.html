@@ -1,0 +1,28 @@
+{% from "_macros.html" import csrf with context %}
+{% if error %}
+<div class="banner banner-err">{{ t(error) }}</div>
+{% elif not items %}
+<p class="muted">{{ t("monitors.no_results") }}</p>
+{% else %}
+<table class="table">
+  <tbody>
+  {% for c in items %}
+    <tr>
+      <td>{{ c.title }} <span class="muted mono small">{{ c.chat_id }}</span></td>
+      <td>{{ t("chat_type." ~ c.chat_type) }}</td>
+      <td class="right">
+        {% if c.chat_id in monitored %}
+          <span class="muted">{{ t("monitors.already") }}</span>
+        {% else %}
+        <form method="post" action="/monitors/add" class="inline">{{ csrf() }}
+          <input type="hidden" name="chat_id" value="{{ c.chat_id }}">
+          <button type="submit" class="btn btn-small btn-primary">{{ t("common.add") }}</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% if total > items | length %}<p class="muted small">{{ t("monitors.more_results", shown=items|length, total=total) }}</p>{% endif %}
+{% endif %}

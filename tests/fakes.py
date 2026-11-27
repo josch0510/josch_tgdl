@@ -59,6 +59,12 @@ class FakeTelegram:
         self.downloads: list[int] = []
         self.gate = asyncio.Event()   # set() to let blocked downloads finish
         self.gate.set()
+        self.dialogs: list[Any] = []
+        self.dialog_calls = 0
+
+    def add_dialog(self, chat_id: int, name: str, *, group: bool = False) -> None:
+        self.dialogs.append(SimpleNamespace(id=chat_id, name=name, is_channel=True,
+                                            is_group=group, is_user=False))
 
     def add(self, chat_id: int, message: Any) -> Any:
         self.messages[(chat_id, message.id)] = message
@@ -70,7 +76,8 @@ class FakeTelegram:
         return self.messages.get((chat_id, ids))
 
     async def get_dialogs(self) -> list[Any]:
-        return []
+        self.dialog_calls += 1
+        return list(self.dialogs)
 
     async def iter_messages(self, chat_id: int, offset_id: int = 0, offset_date: Any = None):
         msgs = sorted((m for (c, _), m in self.messages.items() if c == chat_id),

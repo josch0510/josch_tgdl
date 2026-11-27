@@ -1,0 +1,11 @@
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endmacro %}
+
+{% macro flood_banner(floods, t) %}
+{% for f in floods if f.active %}
+<div class="banner banner-warn" role="status">
+  <strong>{{ t("flood.title") }}</strong>
+  {{ t("flood.scope_" ~ f.scope) }} —
+  {{ t("flood.remaining") }} <span class="countdown" data-until="{{ f.until }}">{{ f.remaining | duration }}</span>
+</div>
+{% endfor %}
+{% endmacro %}

@@ -1,0 +1,48 @@
+{% from "_macros.html" import flood_banner %}<!doctype html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"selfRequestsOnly":true}'>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>{% block title %}{{ t("app.name") }}{% endblock %} · tgdl</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/htmx-2.0.4.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">tgdl</a>
+  {% if logged_in %}
+  <nav class="nav">
+    <a href="/" {% if path == "/" %}aria-current="page"{% endif %}>{{ t("nav.dashboard") }}</a>
+    <a href="/monitors" {% if path.startswith("/monitors") %}aria-current="page"{% endif %}>{{ t("nav.monitors") }}</a>
+    {# history / logs: phase d #}
+    <a href="/settings" {% if path.startswith("/settings") %}aria-current="page"{% endif %}>{{ t("nav.settings") }}</a>
+  </nav>
+  {% endif %}
+  <div class="topbar-right">
+    <span class="lang-switch">
+      <a href="/lang/zh-TW?next={{ path | urlencode }}" {% if lang == "zh-TW" %}aria-current="true"{% endif %}>中文</a>
+      <a href="/lang/en?next={{ path | urlencode }}" {% if lang == "en" %}aria-current="true"{% endif %}>EN</a>
+    </span>
+    {% if logged_in %}
+    <span class="muted me">{{ me_name }}</span>
+    <form method="post" action="/logout" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn btn-small">{{ t("nav.logout") }}</button>
+    </form>
+    {% endif %}
+  </div>
+</header>
+<main class="container">
+  {% if logged_in and path != "/" %}
+  <div id="flood-global" data-live-url="/partials/flood" data-live-events="flood">{{ flood_banner(flood, t) }}</div>
+  {% endif %}
+  {% if flash %}
+  <div class="banner {{ 'banner-ok' if flash[0] == 'ok' else 'banner-err' }}" role="status">{{ t(flash[1]) }}</div>
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

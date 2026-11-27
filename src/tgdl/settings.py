@@ -28,10 +28,11 @@ Listener = Callable[[dict[str, Any]], Awaitable[None] | None]
 
 
 class SettingsError(ValueError):
-    def __init__(self, key: str, code: str) -> None:
-        super().__init__(f"{key}: {code}")
+    def __init__(self, key: str, code: str, detail: str = "") -> None:
+        super().__init__(f"{key}: {code} {detail}".strip())
         self.key = key
         self.code = code
+        self.detail = detail
 
 
 def defaults(cfg: AppConfig) -> dict[str, Any]:
@@ -64,7 +65,11 @@ def validate_setting(cfg: AppConfig, key: str, value: Any) -> Any:
             ZoneInfo(str(value))
             return str(value)
         if key == "category_map":
-            return validate_category_map(value)
+            try:
+                return validate_category_map(value)
+            except ValueError as exc:
+                code, _, detail = str(exc).partition(":")
+                raise SettingsError(key, "settings." + code.replace(".", "_"), detail) from exc
         if key == "default_media_types":
             kinds = sorted({str(v) for v in value})
             if any(k not in MEDIA_KINDS for k in kinds):

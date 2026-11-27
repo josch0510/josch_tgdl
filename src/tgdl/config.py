@@ -51,6 +51,15 @@ class AppConfig:
     web_host: str = "127.0.0.1"
     web_port: int = 8080
     cookie_secure: bool = False
+    extra_hosts: tuple[str, ...] = ()
+
+    @property
+    def allowed_hosts(self) -> list[str]:
+        """Host header values the web UI answers to (DNS-rebinding guard)."""
+        hosts = {"localhost", "127.0.0.1", "::1", "[::1]", *self.extra_hosts}
+        if self.web_host not in ("0.0.0.0", "::", ""):
+            hosts.add(self.web_host)
+        return sorted(hosts)
 
     @property
     def env_path(self) -> Path:
@@ -92,7 +101,8 @@ def load_config(home: Path | None = None) -> AppConfig:
             log.warning("Fixed permissions of .env to 600")
         values = dict(dotenv_values(env_file))
     # Real environment variables override .env
-    for k in ("API_ID", "API_HASH", "ALLOWED_BASE_DIRS", "WEB_HOST", "WEB_PORT", "COOKIE_SECURE"):
+    for k in ("API_ID", "API_HASH", "ALLOWED_BASE_DIRS", "WEB_HOST", "WEB_PORT", "COOKIE_SECURE",
+              "ALLOWED_HOSTS"):
         if os.environ.get(k):
             values[k] = os.environ[k]
 
@@ -128,4 +138,6 @@ def load_config(home: Path | None = None) -> AppConfig:
         web_host=(values.get("WEB_HOST") or "127.0.0.1").strip(),
         web_port=port,
         cookie_secure=_bool(values.get("COOKIE_SECURE")),
+        extra_hosts=tuple(h.strip().lower() for h in (values.get("ALLOWED_HOSTS") or "").split(",")
+                          if h.strip()),
     )

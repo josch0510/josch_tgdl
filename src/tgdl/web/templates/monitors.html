@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}{{ t("nav.monitors") }}{% endblock %}
+{% block content %}
+<h1>{{ t("nav.monitors") }}</h1>
+
+<section class="card">
+  <h2>{{ t("monitors.current") }}</h2>
+  {% if monitors %}
+  <table class="table">
+    <thead><tr><th>{{ t("col.chat") }}</th><th>{{ t("col.type") }}</th><th>{{ t("col.status") }}</th><th>{{ t("monitors.overrides") }}</th><th>{{ t("monitors.backfill") }}</th><th></th></tr></thead>
+    <tbody>
+    {% for m in monitors %}
+      <tr>
+        <td><strong>{{ m.chat_title }}</strong><br><span class="muted mono">{{ m.chat_id }}</span></td>
+        <td>{{ t("chat_type." ~ m.chat_type) }}</td>
+        <td>
+          <form method="post" action="/monitors/{{ m.chat_id }}/toggle" class="inline">{{ csrf() }}
+            <button type="submit" class="btn btn-small {{ 'btn-on' if m.enabled else 'btn-off' }}">{{ t("monitors.enabled") if m.enabled else t("monitors.disabled") }}</button>
+          </form>
+        </td>
+        <td class="small">
+          {% set ov = [] %}
+          {% if m.media_types is not none %}{% set _ = ov.append(t("monitor.types_custom")) %}{% endif %}
+          {% if m.download_dir %}{% set _ = ov.append(t("monitor.dir_custom")) %}{% endif %}
+          {% if m.filename_prefix is not none %}{% set _ = ov.append(t("monitor.prefix_custom")) %}{% endif %}
+          {% if m.min_size is not none or m.max_size is not none %}{% set _ = ov.append(t("monitor.size_filter")) %}{% endif %}
+          {% if m.keyword %}{% set _ = ov.append(t("monitor.keyword_filter")) %}{% endif %}
+          {{ ov | join(", ") if ov else t("monitors.defaults") }}
+          <br><a href="/monitors/{{ m.chat_id }}/settings">{{ t("monitors.edit") }}</a>
+        </td>
+        <td>
+          {% set tid = running[m.chat_id] %}
+          {% if tid is not none %}
+            {% set p = live_backfill[tid] %}
+            <span class="small">{{ t("backfill.progress", scanned=p.scanned, enqueued=p.enqueued) }}</span>
+            <form method="post" action="/backfill/{{ tid }}/cancel" class="inline">{{ csrf() }}
+              <button type="submit" class="btn btn-small">{{ t("common.cancel") }}</button>
+            </form>
+          {% else %}
+          <form method="post" action="/monitors/{{ m.chat_id }}/backfill" class="backfill-form">{{ csrf() }}
+            <input type="date" name="date_from" required max="{{ today }}" aria-label="{{ t('monitors.date_from') }}">
+            <span>–</span>
+            <input type="date" name="date_to" required max="{{ today }}" value="{{ today }}" aria-label="{{ t('monitors.date_to') }}">
+            <button type="submit" class="btn btn-small">{{ t("monitors.backfill_start") }}</button>
+          </form>
+          {% endif %}
+        </td>
+        <td>
+          <form method="post" action="/monitors/{{ m.chat_id }}/delete" class="inline" data-confirm="{{ t('monitors.confirm_remove', chat=m.chat_title) }}">{{ csrf() }}
+            <button type="submit" class="btn btn-small btn-danger">{{ t("common.remove") }}</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">{{ t("monitors.none") }}</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>{{ t("monitors.add") }}</h2>
+  <div class="search-row">
+    <input type="search" name="q" placeholder="{{ t('monitors.search') }}" aria-label="{{ t('monitors.search') }}"
+           hx-get="/monitors/dialogs" hx-trigger="input changed delay:300ms, search, load" hx-target="#dialog-results">
+    <button type="button" class="btn btn-small" hx-get="/monitors/dialogs?refresh=1" hx-include="previous input" hx-target="#dialog-results">{{ t("monitors.refresh") }}</button>
+  </div>
+  <div id="dialog-results"><p class="muted">{{ t("common.loading") }}</p></div>
+</section>
+
+<section class="card" data-live-url="/monitors" data-live-events="backfill" data-live-select="#backfill-history" id="backfill-history">
+  <h2>{{ t("monitors.backfill_history") }}</h2>
+  {% if backfills %}
+  <table class="table nowrap">
+    <thead><tr><th>{{ t("col.chat") }}</th><th>{{ t("monitors.range") }}</th><th>{{ t("col.status") }}</th><th class="num">{{ t("backfill.scanned") }}</th><th class="num">{{ t("backfill.enqueued") }}</th><th>{{ t("col.started") }}</th></tr></thead>
+    <tbody>
+    {% for b in backfills %}
+      {% set p = live_backfill.get(b.id) %}
+      <tr>
+        <td>{{ b.chat_title or b.chat_id }}</td>
+        <td>{{ local_dt(b.date_from, "%Y-%m-%d") }} – {{ local_dt(b.date_to_incl, "%Y-%m-%d") }}</td>
+        <td>{{ t("backfill.status_" ~ ((p.status if p else b.status))) }}</td>
+        <td class="num">{{ p.scanned if p else b.scanned }}</td>
+        <td class="num">{{ p.enqueued if p else b.enqueued }}</td>
+        <td>{{ local_dt(b.created_at) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">{{ t("monitors.no_backfills") }}</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -26,6 +26,7 @@ from .settings import SettingsService
 from .storage.db import Database
 from .storage.repo import Repository
 from .telegram.backfill import BackfillManager
+from .telegram.client import DialogCache
 from .telegram.monitor import MonitorManager
 
 log = logging.getLogger("tgdl.app")
@@ -51,8 +52,12 @@ class App:
     pool: WorkerPool
     monitors: MonitorManager
     backfill: BackfillManager
+    dialogs: DialogCache
     me_name: str = ""
     started_at: float = field(default_factory=time.time)
+    shutting_down: asyncio.Event = field(default_factory=asyncio.Event)
+    web_server: Any = None
+    web_task: asyncio.Task[Any] | None = None
 
     @classmethod
     def build(cls, cfg: AppConfig, client: Any, db: Database, repo: Repository,
@@ -65,8 +70,9 @@ class App:
         pool = WorkerPool(client, repo, settings, pipeline, queue, download_gate, bus)
         monitors = MonitorManager(client, repo, queue, api_gate, bus)
         backfill = BackfillManager(client, repo, settings, queue, api_gate, bus)
+        dialogs = DialogCache(client, api_gate)
         return cls(cfg, client, db, repo, settings, bus, download_gate, api_gate, pipeline,
-                   queue, pool, monitors, backfill)
+                   queue, pool, monitors, backfill, dialogs)
 
     def flood_status(self) -> list[dict[str, Any]]:
         return [self.download_gate.status(), self.api_gate.status()]
@@ -91,7 +97,7 @@ async def warm_entity_cache(app: App) -> None:
     for _ in range(3):
         await app.api_gate.wait()
         try:
-            await app.client.get_dialogs()
+            await app.dialogs.get(refresh=True)
             return
         except FLOOD_ERRORS as exc:
             app.api_gate.trigger(getattr(exc, "seconds", 60))
@@ -108,8 +114,21 @@ async def monitor_resync(app: App) -> None:
             await app.monitors.load()
 
 
+async def stop_web(app: App) -> None:
+    if app.web_server is not None:
+        app.web_server.should_exit = True
+    if app.web_task is not None:
+        try:
+            await asyncio.wait_for(asyncio.shield(app.web_task), timeout=5)
+        except (TimeoutError, Exception):  # noqa: BLE001
+            app.web_task.cancel()
+            await asyncio.gather(app.web_task, return_exceptions=True)
+
+
 async def shutdown(app: App) -> None:
     log_event(log, logging.INFO, "shutdown", "stopping: no new jobs accepted")
+    app.shutting_down.set()
+    await stop_web(app)
     app.queue.accepting = False
     await app.monitors.detach()
     await app.backfill.stop_all()
@@ -148,16 +167,23 @@ async def run_server(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> 
         app.pool.start()
         extra_tasks.append(asyncio.create_task(monitor_resync(app), name="monitor-resync"))
 
-        # Phase c: the web server is started here on the same loop.
-        web_task = await _maybe_start_web(app, t)
-        if web_task is not None:
-            extra_tasks.append(web_task)
+        from .web.server import WebBindError, start_web
+
+        try:
+            app.web_task = await start_web(app)
+        except WebBindError as exc:
+            print(t("cli.serve.bind_failed", error=str(exc)))
+            return 1
+        extra_tasks.append(app.web_task)
 
         log_event(log, logging.INFO, "serve_start",
                   f"monitors={app.monitors.enabled_count}/{len(app.monitors.monitors)} "
                   f"concurrency={settings.get('concurrency')}")
         print(t("cli.serve.started", name=app.me_name, monitors=app.monitors.enabled_count,
                 concurrency=settings.get("concurrency")))
+        print(t("cli.serve.web_url", url=f"http://{cfg.web_host}:{cfg.web_port}/"))
+        if await repo.get_password_hash() is None:
+            print(t("cli.serve.no_password"))
 
         stop = asyncio.Event()
         presses = 0
@@ -195,12 +221,4 @@ async def run_server(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> 
         await client.disconnect()
         await db.close()
         print(t("cli.serve.stopped"))
-
-
-async def _maybe_start_web(app: App, t: Translate) -> asyncio.Task[Any] | None:
-    try:
-        from .web.server import start_web  # type: ignore[attr-defined]
-    except ImportError:
-        return None
-    return await start_web(app, t)
 
