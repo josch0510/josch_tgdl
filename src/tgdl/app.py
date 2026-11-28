@@ -8,13 +8,16 @@ import contextlib
 import logging
 import os
 import signal
+import sys
 import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import systemd
 from .config import AppConfig
+from .systemd import EXIT_CONFIG
 from .core.paths import PathNotAllowed, resolve_allowed
 from .downloader.download import cleanup_parts
 from .downloader.flood import FLOOD_ERRORS, FloodGate
@@ -143,8 +146,39 @@ async def stop_web(app: App) -> None:
             await asyncio.gather(app.web_task, return_exceptions=True)
 
 
+def acquire_instance_lock(cfg: AppConfig) -> Any:
+    """Allow one `tgdl serve` per installation (e.g. a systemd service plus a
+    manual start would fight over the session file, DB and port). The lock is
+    released automatically when the process exits."""
+    import fcntl
+
+    cfg.prepare_dirs()
+    fh = open(cfg.data_dir / "serve.lock", "a+")  # noqa: SIM115 - kept open for the lifetime
+    try:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        fh.close()
+        return None
+    fh.seek(0)
+    fh.truncate()
+    fh.write(f"{os.getpid()}\n")
+    fh.flush()
+    return fh
+
+
+def status_line(app: App) -> str:
+    """One-line status for `systemctl status` (English, like the log file)."""
+    flood = app.download_gate.status()
+    parts = [f"monitors {app.monitors.enabled_count}/{len(app.monitors.monitors)}",
+             f"downloading {len(app.pool.active)}/{app.pool.target}"]
+    if flood["active"]:
+        parts.append(f"FloodWait {flood['remaining']}s")
+    return ", ".join(parts)
+
+
 async def shutdown(app: App) -> None:
     log_event(log, logging.INFO, "shutdown", "stopping: no new jobs accepted")
+    systemd.notify("STOPPING=1\nSTATUS=stopping")
     app.shutting_down.set()
     await stop_web(app)
     app.queue.accepting = False
@@ -164,6 +198,10 @@ async def run_server(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> 
     from .cli import open_storage
     from .telegram.client import build_client
 
+    lock = acquire_instance_lock(cfg)
+    if lock is None:
+        print(t("cli.serve.already_running"), file=sys.stderr)
+        return 1
     client = build_client(cfg, long_running=True)
     db, repo, settings = await open_storage(cfg)
     app: App | None = None
@@ -173,8 +211,8 @@ async def run_server(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> 
         print(t("cli.serve.connecting"))
         await client.connect()
         if not await client.is_user_authorized():
-            print(t("cli.not_logged_in"))
-            return 1
+            print(t("cli.not_logged_in"), file=sys.stderr)
+            return EXIT_CONFIG  # restarting will not help (systemd: no restart loop)
         me = await client.get_me()
 
         app = App.build(cfg, client, db, repo, settings)
@@ -215,6 +253,11 @@ async def run_server(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> 
         admin = await repo.get_admin()
         if admin is None or not admin["username"]:
             print(t("cli.serve.no_password"))
+
+        # systemd (Type=notify): ready only now that Telegram and the web UI are up
+        systemd.notify("READY=1\nSTATUS=" + status_line(app))
+        extra_tasks.append(asyncio.create_task(
+            systemd.watchdog_loop(lambda: status_line(app)), name="systemd-watchdog"))
 
         stop = asyncio.Event()
         presses = 0

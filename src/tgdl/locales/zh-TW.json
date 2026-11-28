@@ -291,5 +291,9 @@
   "settings.direction_hint": "「只下載收到的」會略過由您自己帳號傳送的媒體（私人對話、群組，以及您發文的頻道）。",
   "direction.all": "全部（收到與傳送）",
   "direction.incoming": "只下載收到的",
-  "monitor.direction_saved": "「我的收藏」一律全部下載，因為其中的訊息都算是您自己傳送的。"
+  "monitor.direction_saved": "「我的收藏」一律全部下載，因為其中的訊息都算是您自己傳送的。",
+  "cli.cmd.systemd_unit": "輸出適用於此安裝的 systemd unit 檔",
+  "cli.opt.system_unit": "產生系統服務（由 root 安裝，以 --user 帳號執行），而非使用者服務",
+  "cli.opt.unit_user": "系統服務執行的帳號（預設為目前使用者）",
+  "cli.serve.already_running": "此目錄的 tgdl serve 已在執行中（例如以 systemd 服務執行），請先停止它。"
 }

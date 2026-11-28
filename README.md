@@ -4,7 +4,7 @@
 
 Downloads media from Telegram groups and channels you have joined (user-account
 login via MTProto/Telethon), organizes it by chat / category / date, and is
-managed from a local web UI. One foreground process — no systemd, no Docker.
+managed from a local web UI. One process — run it in the foreground or as a systemd service; no Docker.
 
 - Monitor many chats at once; enable/disable each; per-chat media types,
   directory, filename prefix, size and filename-keyword filters
@@ -54,6 +54,48 @@ $EDITOR .env
 Add `--lang zh-TW` (or set `LANG=zh_TW.UTF-8`) for Chinese CLI messages.
 `tgdl serve` runs in the foreground; to keep it running after you log out of
 SSH, start it inside `tmux` or `screen`.
+
+### Running as a systemd service (optional)
+
+Instead of a foreground `tgdl serve`, tgdl can run as a service that starts at
+boot and restarts on failure. Run `tgdl login` and `tgdl set-password` first
+(they are interactive). `tgdl systemd-unit` prints a unit file with the paths
+of *this* installation (examples: `deploy/systemd/`).
+
+**User service** (recommended: runs as your own account, no root needed):
+
+```bash
+mkdir -p ~/.config/systemd/user
+.venv/bin/tgdl --lang zh-TW systemd-unit > ~/.config/systemd/user/tgdl.service
+systemctl --user daemon-reload
+systemctl --user enable --now tgdl
+sudo loginctl enable-linger "$USER"     # start at boot without logging in
+systemctl --user status tgdl            # shows "monitors x/y, downloading a/b"
+journalctl --user -u tgdl -f            # live log
+```
+
+**System service** (installed by root, runs as your account, stricter
+sandbox: it can only write the project directory and `ALLOWED_BASE_DIRS`):
+
+```bash
+.venv/bin/tgdl --lang zh-TW systemd-unit --system | sudo tee /etc/systemd/system/tgdl.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now tgdl
+journalctl -u tgdl -f
+```
+
+Notes:
+
+- `Type=notify`: `systemctl start` returns once Telegram and the web UI are
+  up; a watchdog restarts tgdl if it hangs; `systemctl stop` is a graceful stop
+  (like Ctrl+C).
+- Not logged in / bad `.env` exits with code 78 and is **not** restarted in a
+  loop; fix it (e.g. stop the service, run `tgdl login`) and start again.
+- Only one `tgdl serve` per directory can run: stop the service before
+  running `tgdl serve` or `tgdl login` by hand.
+- After `git pull`: `systemctl --user restart tgdl` (or `sudo systemctl restart tgdl`).
+- System service: after changing `ALLOWED_BASE_DIRS`, regenerate the unit (its
+  write permissions are derived from it) and `daemon-reload`.
 
 ### Accessing the web UI (SSH tunnel)
 
@@ -173,6 +215,7 @@ tgdl [--lang en|zh-TW] [--home DIR] COMMAND
   serve                                    web UI + monitors + workers (foreground)
   monitor list|add|remove|enable|disable [CHAT]
   fetch CHAT [--limit N]                   one-shot download of the latest N messages
+  systemd-unit [--system] [--user NAME]    print a systemd unit for this installation
 ```
 
 `--home` (or `TGDL_HOME`) selects the directory holding `.env`, `data/` and
@@ -220,7 +263,7 @@ Layout of `src/tgdl/`: `core/` (sanitizing, paths, categories, filters),
 
 ## 繁體中文說明
 
-用您自己的 Telegram 帳號（MTProto / Telethon）下載已加入群組與頻道中的媒體，依對話、分類、日期自動整理，並透過本機網頁介面管理。只需要一個前景程式，不需要 systemd 或 Docker。
+用您自己的 Telegram 帳號（MTProto / Telethon）下載已加入群組與頻道中的媒體，依對話、分類、日期自動整理，並透過本機網頁介面管理。只需要一個程式，可前景執行，也可設為 systemd 服務；不需要 Docker。
 
 ### 功能
 
@@ -263,6 +306,39 @@ $EDITOR .env
 ```
 
 若要在登出 SSH 後讓程式繼續執行，請在 `tmux` 或 `screen` 中啟動。
+
+### 以 systemd 服務執行（選用）
+
+除了前景執行 `tgdl serve`，也可以設成開機自動啟動、異常時自動重啟的服務。請先手動完成 `tgdl login` 和 `tgdl set-password`（需要互動輸入）。`tgdl systemd-unit` 會依**這份安裝**的實際路徑產生 unit 檔（範例在 `deploy/systemd/`）。
+
+**使用者服務**（建議：以您自己的帳號執行，不需要 root）：
+
+```bash
+mkdir -p ~/.config/systemd/user
+.venv/bin/tgdl --lang zh-TW systemd-unit > ~/.config/systemd/user/tgdl.service
+systemctl --user daemon-reload
+systemctl --user enable --now tgdl
+sudo loginctl enable-linger "$USER"     # 不用登入也會在開機時啟動
+systemctl --user status tgdl            # 顯示「monitors x/y, downloading a/b」
+journalctl --user -u tgdl -f            # 即時日誌
+```
+
+**系統服務**（由 root 安裝、以您的帳號執行，沙箱更嚴格：只能寫入專案目錄與 `ALLOWED_BASE_DIRS`）：
+
+```bash
+.venv/bin/tgdl --lang zh-TW systemd-unit --system | sudo tee /etc/systemd/system/tgdl.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now tgdl
+journalctl -u tgdl -f
+```
+
+注意事項：
+
+- 使用 `Type=notify`：`systemctl start` 會等 Telegram 與網頁介面都啟動後才回傳；程式卡住時 watchdog 會自動重啟；`systemctl stop` 等同 Ctrl+C 的正常停止
+- 尚未登入 Telegram 或 `.env` 設定錯誤時，會以代碼 78 結束且**不會**反覆重啟；請先修正（例如停止服務後執行 `tgdl login`）再啟動
+- 同一個目錄同時只能執行一個 `tgdl serve`：手動執行 `tgdl serve` 或 `tgdl login` 前，請先停止服務
+- `git pull` 更新後：`systemctl --user restart tgdl`（系統服務則為 `sudo systemctl restart tgdl`）
+- 系統服務：修改 `ALLOWED_BASE_DIRS` 後需重新產生 unit 檔（寫入權限依它設定），並執行 `daemon-reload`
 
 ### 透過 SSH tunnel 連線
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import collections
 import logging
+import os
 import re
 import threading
 from logging.handlers import RotatingFileHandler
@@ -15,6 +16,8 @@ from .config import ensure_private_file
 
 LOG_FORMAT = ("%(asctime)s | %(levelname)s | chat=%(chat)s | msg_id=%(msg_id)s | "
               "action=%(action)s | reason=%(reason)s | %(message)s")
+JOURNAL_FORMAT = ("%(levelname)s | chat=%(chat)s | msg_id=%(msg_id)s | action=%(action)s | "
+                  "reason=%(reason)s | %(message)s")
 AUDIT_FORMAT = "%(asctime)s | %(levelname)s | user=%(user)s | ip=%(ip)s | action=%(action)s | %(message)s"
 MAX_BYTES = 10 * 1024 * 1024
 BACKUPS = 5
@@ -127,7 +130,9 @@ def setup_logging(logs_dir: Path, *, console: bool = True, level: int = logging.
     app.addHandler(ring_buffer)
     if console:
         ch = logging.StreamHandler()
-        ch.setFormatter(logging.Formatter(LOG_FORMAT))
+        # journald stamps every line itself; avoid a second timestamp there
+        journal = bool(os.environ.get("JOURNAL_STREAM"))
+        ch.setFormatter(logging.Formatter(JOURNAL_FORMAT if journal else LOG_FORMAT))
         ch.addFilter(_Defaults(_FIELDS))
         ch.addFilter(RedactFilter())
         ch.setLevel(logging.INFO)

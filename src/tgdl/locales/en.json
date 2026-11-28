@@ -291,5 +291,9 @@
   "settings.direction_hint": "\"Received only\" skips media sent by your own account (in private chats, groups and channels you post to).",
   "direction.all": "All (received and sent)",
   "direction.incoming": "Received only",
-  "monitor.direction_saved": "Saved Messages always downloads everything: all its messages count as sent by you."
+  "monitor.direction_saved": "Saved Messages always downloads everything: all its messages count as sent by you.",
+  "cli.cmd.systemd_unit": "Print a systemd unit file for this installation",
+  "cli.opt.system_unit": "System service (root installs it; runs as --user) instead of a user service",
+  "cli.opt.unit_user": "Account the system service runs as (default: current user)",
+  "cli.serve.already_running": "tgdl serve is already running for this directory (e.g. as a systemd service). Stop it first."
 }

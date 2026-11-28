@@ -12,6 +12,7 @@ from collections.abc import Callable
 from typing import Any
 
 from .config import AppConfig, ConfigError, load_config
+from .systemd import EXIT_CONFIG
 from .i18n import cli_lang, get_translator
 from .logging_setup import audit, log_event, setup_logging
 from .passwords import MIN_PASSWORD_LENGTH, hash_password, normalize_username
@@ -200,6 +201,16 @@ async def cmd_monitor(cfg: AppConfig, t: Translate, args: argparse.Namespace) ->
         await db.close()
 
 
+async def cmd_systemd_unit(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> int:
+    """Print a systemd unit for this installation (paths taken from here)."""
+    from .systemd import render_unit
+
+    user = args.user or getpass.getuser()
+    lang = args.lang or "en"
+    sys.stdout.write(render_unit(cfg, system=args.system, user=user, lang=lang))
+    return 0
+
+
 async def cmd_serve(cfg: AppConfig, t: Translate, args: argparse.Namespace) -> int:
     from .app import run_server
 
@@ -212,6 +223,7 @@ COMMANDS: dict[str, Callable[[AppConfig, Translate, argparse.Namespace], Any]] =
     "serve": cmd_serve,
     "fetch": cmd_fetch,
     "monitor": cmd_monitor,
+    "systemd-unit": cmd_systemd_unit,
 }
 
 
@@ -227,6 +239,9 @@ def build_parser(t: Translate) -> argparse.ArgumentParser:
     f = sub.add_parser("fetch", help=t("cli.cmd.fetch"))
     f.add_argument("chat", help=t("cli.opt.chat"))
     f.add_argument("--limit", type=int, default=20, help=t("cli.opt.limit"))
+    su = sub.add_parser("systemd-unit", help=t("cli.cmd.systemd_unit"))
+    su.add_argument("--system", action="store_true", help=t("cli.opt.system_unit"))
+    su.add_argument("--user", help=t("cli.opt.unit_user"))
     mon = sub.add_parser("monitor", help=t("cli.cmd.monitor"))
     mon.add_argument("action", choices=["list", "add", "remove", "enable", "disable"])
     mon.add_argument("chat", nargs="?", help=t("cli.opt.chat"))
@@ -256,14 +271,14 @@ def main(argv: list[str] | None = None) -> int:
         cfg = load_config(Path(args.home) if args.home else None)
     except ConfigError as exc:
         print(t(exc.code, **exc.params), file=sys.stderr)
-        return 1
+        return EXIT_CONFIG
     cfg.prepare_dirs()
     setup_logging(cfg.logs_dir, console=args.command == "serve")
     try:
         return asyncio.run(COMMANDS[args.command](cfg, t, args)) or 0
     except ConfigError as exc:
         print(t(exc.code, **exc.params), file=sys.stderr)
-        return 1
+        return EXIT_CONFIG
     except KeyboardInterrupt:
         print()
         return 130
