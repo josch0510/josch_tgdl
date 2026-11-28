@@ -24,14 +24,14 @@ from ..security import (
 router = APIRouter()
 
 LOGIN_CSRF_COOKIE = "tgdl_login_csrf"
+DASHBOARD = "/"
 
 
 def _login_page(request: Request, *, error: str | None = None, status_code: int = 200,
                 username: str = "", **params: object) -> Response:
     token = secrets.token_urlsafe(32)
     resp = render(request, "login.html", status_code=status_code, login_csrf=token,
-                  error=error, error_params=params, username=username,
-                  next=safe_next(request.query_params.get("next")))
+                  error=error, error_params=params, username=username)
     resp.set_cookie(LOGIN_CSRF_COOKIE, token, max_age=3600, httponly=True, samesite="strict",
                     secure=core(request).cfg.cookie_secure, path="/login")
     return resp
@@ -50,7 +50,7 @@ async def login_form(request: Request) -> Response:
 
 @router.post("/login")
 async def login_submit(request: Request, username: str = Form(""), password: str = Form(""),
-                       login_csrf: str = Form(""), next: str = Form("/")) -> Response:
+                       login_csrf: str = Form("")) -> Response:
     app = core(request)
     limiter: LoginLimiter = request.app.state.limiter
     sessions: SessionManager = request.app.state.sessions
@@ -83,7 +83,8 @@ async def login_submit(request: Request, username: str = Form(""), password: str
     admin = await app.repo.get_admin()
     request.app.state.admin_username = (admin or {}).get("username") or "-"
     audit_web(request, "login_success", user=request.app.state.admin_username)
-    resp = RedirectResponse(safe_next(next), status_code=303)
+    # Always land on the dashboard after signing in.
+    resp = RedirectResponse(DASHBOARD, status_code=303)
     resp.set_cookie(SESSION_COOKIE, token, max_age=int(SESSION_ABSOLUTE.total_seconds()),
                     httponly=True, samesite="strict", secure=app.cfg.cookie_secure, path="/")
     resp.delete_cookie(LOGIN_CSRF_COOKIE, path="/login")

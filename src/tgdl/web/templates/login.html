@@ -6,7 +6,6 @@
   {% if error %}<div class="banner banner-err" role="alert">{{ t(error, **error_params) }}</div>{% endif %}
   <form method="post" action="/login" class="stack">
     <input type="hidden" name="login_csrf" value="{{ login_csrf }}">
-    <input type="hidden" name="next" value="{{ next }}">
     <label>{{ t("login.username") }}
       <input type="text" name="username" value="{{ username }}" autocomplete="username" autocapitalize="none"
              spellcheck="false" required maxlength="64" {% if not username %}autofocus{% endif %}>

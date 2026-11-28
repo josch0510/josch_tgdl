@@ -32,8 +32,7 @@ async def with_password(repo):
 
 async def login(web, password=PASSWORD, username=USERNAME, **extra):
     r = await web.get("/login")
-    data = {"username": username, "password": password, "login_csrf": hidden(r.text, "login_csrf"),
-            "next": "/"}
+    data = {"username": username, "password": password, "login_csrf": hidden(r.text, "login_csrf")}
     data.update(extra)
     return await web.post("/login", data=data)
 
@@ -50,7 +49,7 @@ async def logged_in(web) -> str:
 async def test_requires_login(web) -> None:
     for path in ("/", "/monitors", "/settings", "/events", "/partials/dashboard"):
         r = await web.get(path)
-        assert r.status_code == 303 and r.headers["location"].startswith("/login"), path
+        assert r.status_code == 303 and r.headers["location"] == "/login", path
     r = await web.get("/partials/dashboard", headers={"HX-Request": "true"})
     assert r.status_code == 401 and r.headers["HX-Redirect"] == "/login"
 
@@ -126,7 +125,7 @@ async def test_lockout_after_failures(web, with_password) -> None:
 
 
 async def test_open_redirect_blocked(web, with_password) -> None:
-    r = await login(web, next="//evil.example/x")
+    r = await login(web, next="//evil.example/x")   # ignored: always the dashboard
     assert r.headers["location"] == "/"
     r = await web.get("/lang/en", params={"next": "https://evil.example"})
     assert r.headers["location"] == "/"
@@ -409,3 +408,13 @@ async def test_backfill_range_displayed_inclusive(web, app, with_password) -> No
     await asyncio.sleep(0.1)
     html = (await web.get("/monitors")).text
     assert "2026-01-01 – 2026-01-31" in html
+
+
+async def test_login_always_lands_on_dashboard(web, with_password) -> None:
+    # coming from another page (e.g. an expired session on /monitors)
+    r = await web.get("/monitors?m_page=2")
+    assert r.headers["location"] == "/login"
+    r = await web.get("/login?next=/settings")
+    assert 'name="next"' not in r.text
+    r = await login(web)
+    assert r.status_code == 303 and r.headers["location"] == "/"

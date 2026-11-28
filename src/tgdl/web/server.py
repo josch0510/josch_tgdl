@@ -148,9 +148,6 @@ def create_app(core: "App") -> FastAPI:
     async def _login_required(request: Request, _exc: LoginRequired) -> Response:
         if request.headers.get("hx-request"):
             return Response(status_code=401, headers={"HX-Redirect": "/login"})
-        target = request.url.path
-        if request.method == "GET" and target not in ("/", "/login"):
-            return RedirectResponse(f"/login?next={target}", status_code=303)
         return RedirectResponse("/login", status_code=303)
 
     @app.exception_handler(HTTPException)
